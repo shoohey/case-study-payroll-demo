@@ -1,0 +1,2137 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI開発事例 - 在庫・受注管理システム</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700;900&family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --primary: #1E3A5F;
+    --primary-l: #2A4F7A;
+    --accent: #2D6A4F;
+    --accent-l: #40916C;
+    --bg: #FAFBFC;
+    --bg-card: #FFFFFF;
+    --text: #1a1a2e;
+    --text-sub: #64748b;
+    --border: #E2E8F0;
+    --success: #2D6A4F;
+    --danger: #B91C1C;
+    --warn: #B45309;
+  }
+
+  body {
+    font-family: 'Noto Sans JP', 'Inter', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+  }
+
+  .scene {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100vw;
+    height: 100vh;
+    opacity: 0;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    padding: 6vh 8vw;
+  }
+  .scene.active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* ===== PROGRESS BAR ===== */
+  .progress-bar {
+    position: fixed;
+    bottom: 0; left: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--primary), var(--accent));
+    z-index: 100;
+    transition: width 0.3s ease;
+  }
+
+  /* ===== SCENE INDICATORS ===== */
+  .scene-indicators {
+    position: fixed;
+    right: 2vw;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 100;
+  }
+  .scene-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: #CBD5E1;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    border: none;
+    padding: 0;
+  }
+  .scene-dot.active {
+    background: var(--primary);
+    box-shadow: 0 0 8px rgba(30,58,95,0.3);
+    transform: scale(1.3);
+  }
+
+  /* ===== CONTROLS ===== */
+  .controls {
+    position: fixed;
+    bottom: 2.5vh;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 12px;
+    z-index: 100;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  body:hover .controls {
+    opacity: 1;
+  }
+  .ctrl-btn {
+    width: 44px;
+    height: 44px;
+    background: rgba(30,58,95,0.08);
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--primary);
+    font-size: 16px;
+    transition: all 0.2s ease;
+  }
+  .ctrl-btn:hover {
+    background: rgba(30,58,95,0.15);
+    transform: scale(1.1);
+  }
+
+  /* ===== SHARED HEADER ===== */
+  .scene-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 5vh;
+    opacity: 0;
+    transform: translateX(-40px);
+    width: 100%;
+  }
+  .scene-number {
+    width: 48px;
+    height: 48px;
+    background: var(--primary);
+    color: #fff;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    font-weight: 800;
+    flex-shrink: 0;
+  }
+  .scene-title {
+    font-size: clamp(24px, 2.8vw, 44px);
+    font-weight: 800;
+    color: var(--text);
+  }
+
+  /* ===== SCENE 1: TITLE ===== */
+  .scene1 {
+    background: #FAFBFC;
+    gap: 3vh;
+  }
+  .title-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(30,58,95,0.06);
+    border: 1px solid rgba(30,58,95,0.15);
+    padding: 8px 24px;
+    border-radius: 100px;
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    color: var(--primary);
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  .title-badge .dot {
+    width: 8px; height: 8px;
+    background: var(--accent);
+    border-radius: 50%;
+  }
+  .title-main {
+    font-size: clamp(32px, 4.5vw, 72px);
+    font-weight: 900;
+    text-align: center;
+    line-height: 1.4;
+    opacity: 0;
+    transform: translateY(40px);
+    color: var(--text);
+  }
+  .title-main .gradient-text {
+    color: var(--primary);
+  }
+  .title-sub {
+    font-size: clamp(16px, 1.6vw, 26px);
+    font-weight: 400;
+    color: var(--text-sub);
+    text-align: center;
+    line-height: 1.8;
+    opacity: 0;
+    transform: translateY(30px);
+    max-width: 800px;
+  }
+
+  /* ===== SCENE 2: OVERVIEW ===== */
+  .overview-container {
+    display: flex;
+    gap: 4vw;
+    width: 100%;
+    align-items: stretch;
+  }
+  .overview-box {
+    flex: 1;
+    border-radius: 16px;
+    padding: 4vh 2.5vw;
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  .overview-box.challenge {
+    background: #FFF5F5;
+    border: 2px solid #FED7D7;
+  }
+  .overview-box.solution {
+    background: #F0FFF4;
+    border: 2px solid #C6F6D5;
+  }
+  .overview-box-label {
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    margin-bottom: 2vh;
+    padding: 4px 12px;
+    border-radius: 6px;
+    display: inline-block;
+  }
+  .overview-box.challenge .overview-box-label {
+    background: #FED7D7;
+    color: #9B2C2C;
+  }
+  .overview-box.solution .overview-box-label {
+    background: #C6F6D5;
+    color: #276749;
+  }
+  .overview-box h3 {
+    font-size: clamp(20px, 1.8vw, 30px);
+    font-weight: 800;
+    margin-bottom: 2vh;
+    line-height: 1.5;
+  }
+  .overview-box ul {
+    list-style: none;
+    padding: 0;
+  }
+  .overview-box ul li {
+    font-size: clamp(15px, 1.2vw, 20px);
+    line-height: 1.8;
+    padding: 6px 0;
+    padding-left: 28px;
+    position: relative;
+    color: #334155;
+  }
+  .overview-box.challenge ul li::before {
+    content: '!';
+    position: absolute;
+    left: 0;
+    width: 20px;
+    height: 20px;
+    background: #FEB2B2;
+    color: #9B2C2C;
+    border-radius: 50%;
+    font-size: 12px;
+    font-weight: 900;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    top: 10px;
+  }
+  .overview-box.solution ul li::before {
+    content: '\2713';
+    position: absolute;
+    left: 0;
+    width: 20px;
+    height: 20px;
+    background: #9AE6B4;
+    color: #276749;
+    border-radius: 50%;
+    font-size: 12px;
+    font-weight: 900;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    top: 10px;
+  }
+
+  /* ===== PROBLEM CARDS (individual pages) ===== */
+  .problem-page {
+    background: #FAFBFC;
+  }
+  .problem-single {
+    width: 100%;
+    max-width: 900px;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 5vh 4vw;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.04);
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  .problem-single-icon {
+    font-size: 48px;
+    margin-bottom: 2vh;
+  }
+  .problem-single h2 {
+    font-size: clamp(24px, 2.2vw, 36px);
+    font-weight: 800;
+    margin-bottom: 2vh;
+    color: var(--text);
+  }
+  .problem-single p {
+    font-size: clamp(16px, 1.3vw, 22px);
+    color: var(--text-sub);
+    line-height: 2;
+  }
+  .problem-single .highlight-box {
+    margin-top: 3vh;
+    background: #FFF5F5;
+    border: 1px solid #FED7D7;
+    border-radius: 12px;
+    padding: 2vh 2vw;
+  }
+  .problem-single .highlight-box p {
+    color: #9B2C2C;
+    font-weight: 600;
+    font-size: clamp(14px, 1.1vw, 18px);
+  }
+
+  /* ===== EXCEL MOCKUP ===== */
+  .browser-mock {
+    width: 100%;
+    max-width: 700px;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+    border: 1px solid var(--border);
+    background: #fff;
+    margin-top: 3vh;
+  }
+  .browser-bar {
+    background: #e5e7eb;
+    padding: 8px 14px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .browser-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+  }
+  .browser-dot.r { background: #ef4444; }
+  .browser-dot.y { background: #f59e0b; }
+  .browser-dot.g { background: #10b981; }
+  .browser-url {
+    background: white;
+    border-radius: 6px;
+    padding: 4px 12px;
+    font-size: 12px;
+    color: #64748b;
+    margin-left: 10px;
+    flex: 1;
+    font-family: 'Inter', monospace;
+  }
+  .excel-content { padding: 0; }
+  .excel-toolbar {
+    background: #217346;
+    color: white;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .excel-formula {
+    background: #fff;
+    border-bottom: 1px solid #d4d4d4;
+    padding: 4px 10px;
+    font-size: 11px;
+    color: #333;
+    display: flex;
+    gap: 6px;
+  }
+  .excel-formula span { color: #888; font-weight: 600; }
+  .excel-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .excel-table th, .excel-table td {
+    border: 1px solid #c8c8c8;
+    padding: 4px 8px;
+    text-align: left;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  .excel-table th {
+    background: #e8e8e8;
+    color: #555;
+    font-weight: 600;
+    text-align: center;
+  }
+  .excel-table .col-header {
+    background: #f0f0f0;
+    color: #666;
+    text-align: center;
+    font-weight: 600;
+    min-width: 24px;
+  }
+  .excel-table .cell-err {
+    background: #fff0f0;
+    color: #dc2626;
+    font-weight: 700;
+  }
+  .excel-table .cell-warn {
+    background: #fffbe6;
+    color: #b45309;
+  }
+  .browser-mock.outdated::after {
+    content: 'OUTDATED';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%) rotate(-15deg);
+    font-size: 48px;
+    font-weight: 900;
+    color: rgba(239,68,68,0.12);
+    letter-spacing: 8px;
+    pointer-events: none;
+    z-index: 5;
+  }
+
+  /* ===== FLOW ===== */
+  .flow-container {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    margin-top: 2vh;
+  }
+  .flow-step {
+    flex: 1;
+    text-align: center;
+    opacity: 0;
+    transform: translateY(40px);
+  }
+  .flow-icon-wrap {
+    width: clamp(70px, 7vw, 120px);
+    height: clamp(70px, 7vw, 120px);
+    margin: 0 auto 2vh;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(28px, 3vw, 48px);
+  }
+  .flow-step:nth-child(1) .flow-icon-wrap { background: #EBF5FF; }
+  .flow-step:nth-child(3) .flow-icon-wrap { background: #F3E8FF; }
+  .flow-step:nth-child(5) .flow-icon-wrap { background: #ECFDF5; }
+  .flow-step:nth-child(7) .flow-icon-wrap { background: #FFF7ED; }
+  .flow-step h3 {
+    font-size: clamp(16px, 1.4vw, 22px);
+    font-weight: 800;
+    margin-bottom: 0.5vh;
+    color: var(--primary);
+  }
+  .flow-step p {
+    font-size: clamp(14px, 1vw, 18px);
+    color: var(--text-sub);
+    line-height: 1.6;
+    padding: 0 0.5vw;
+  }
+  .flow-arrow {
+    font-size: clamp(24px, 2.5vw, 36px);
+    color: #CBD5E1;
+    opacity: 0;
+    flex-shrink: 0;
+    width: clamp(30px, 3vw, 60px);
+    text-align: center;
+  }
+
+  /* ===== DEMO APP MOCKUP ===== */
+  .browser-mock.app {
+    background: #fff;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+    border: 1px solid var(--border);
+    max-width: 800px;
+  }
+  .browser-bar.app {
+    background: #f8fafc;
+    border-bottom: 1px solid var(--border);
+  }
+  .browser-bar.app .browser-url {
+    background: #EEF2F6;
+    color: #64748b;
+  }
+  .demo-app-header {
+    background: linear-gradient(135deg, #142A45, #1E3A5F);
+    padding: 8px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #fff;
+    font-size: 12px;
+  }
+  .demo-logo {
+    font-weight: 900;
+    letter-spacing: 2px;
+    background: rgba(255,255,255,0.15);
+    padding: 2px 10px;
+    border-radius: 4px;
+    font-size: 13px;
+  }
+  .demo-tabs-bar {
+    display: flex;
+    gap: 2px;
+    margin-left: 10px;
+  }
+  .demo-tab {
+    padding: 4px 12px;
+    font-size: 11px;
+    font-weight: 700;
+    border-radius: 4px 4px 0 0;
+    color: rgba(255,255,255,0.4);
+    background: rgba(255,255,255,0.06);
+  }
+  .demo-tab.active {
+    background: #fff;
+    color: #1E3A5F;
+  }
+  .demo-body {
+    background: #F1F5F9;
+    padding: 12px;
+    color: #0F172A;
+  }
+  .mini-tbl {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  .mini-tbl th {
+    background: #F8FAFC;
+    padding: 6px 8px;
+    font-weight: 600;
+    color: #64748B;
+    border-bottom: 2px solid #E2E8F0;
+    text-align: left;
+    font-size: 11px;
+  }
+  .mini-tbl td {
+    padding: 6px 8px;
+    border-bottom: 1px solid #F1F5F9;
+    color: #334155;
+  }
+  .mini-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .bg-green { background: #D8F3DC; color: #2D6A4F; }
+  .bg-orange { background: #FFF0E0; color: #B45309; }
+  .bg-purple { background: #F3E8FF; color: #7C3AED; }
+  .bg-teal { background: #E0F2FE; color: #0369A1; }
+
+  .wf-bar {
+    display: flex;
+    gap: 2px;
+  }
+  .wf-step {
+    flex: 1;
+    padding: 3px;
+    text-align: center;
+    font-size: 9px;
+    font-weight: 600;
+    border-radius: 3px;
+    background: #F1F5F9;
+    color: #94A3B8;
+  }
+  .wf-step.done { background: #D8F3DC; color: #2D6A4F; }
+  .wf-step.cur { background: #1E3A5F; color: #fff; }
+
+  /* ===== FEATURE CARDS (full page each) ===== */
+  .feature-page {
+    background: #FAFBFC;
+    text-align: center;
+  }
+  .feature-card-full {
+    width: 100%;
+    max-width: 900px;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 5vh 4vw;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.04);
+    text-align: left;
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  .feature-card-full .icon {
+    font-size: 48px;
+    margin-bottom: 2vh;
+  }
+  .feature-card-full h2 {
+    font-size: clamp(22px, 2vw, 34px);
+    font-weight: 800;
+    margin-bottom: 1.5vh;
+    color: var(--text);
+  }
+  .feature-card-full p {
+    font-size: clamp(16px, 1.2vw, 20px);
+    color: var(--text-sub);
+    line-height: 2;
+  }
+  .feature-list {
+    margin-top: 3vh;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5vh;
+  }
+  .feature-list-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 1.5vh 1.5vw;
+    background: #F8FAFC;
+    border-radius: 12px;
+    border: 1px solid #EEF2F6;
+  }
+  .feature-list-item .fi-icon {
+    font-size: 24px;
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    background: #EBF5FF;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .feature-list-item h4 {
+    font-size: clamp(14px, 1vw, 18px);
+    font-weight: 700;
+    margin-bottom: 2px;
+    color: var(--text);
+  }
+  .feature-list-item p {
+    font-size: clamp(13px, 0.9vw, 16px);
+    line-height: 1.6;
+  }
+
+  /* ===== QUOTE DOC ===== */
+  .quote-doc {
+    border: 2px solid var(--primary);
+    border-radius: 8px;
+    padding: 16px;
+    background: #fff;
+    color: var(--text);
+    max-width: 600px;
+    margin-top: 3vh;
+  }
+  .quote-title {
+    text-align: right;
+    font-size: 22px;
+    font-weight: 900;
+    color: var(--primary);
+    margin-bottom: 6px;
+  }
+  .quote-subtitle {
+    text-align: right;
+    font-size: 11px;
+    color: #64748B;
+    margin-bottom: 12px;
+  }
+  .quote-parties {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 12px;
+  }
+  .quote-party {
+    flex: 1;
+    border: 1px solid #E2E8F0;
+    border-radius: 6px;
+    padding: 10px;
+  }
+  .quote-party-name {
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .quote-party-info {
+    font-size: 10px;
+    color: #64748B;
+    line-height: 1.6;
+  }
+  .quote-amount {
+    font-size: 16px;
+    font-weight: 900;
+    margin: 8px 0;
+  }
+  .quote-total-box {
+    border: 1px solid #E2E8F0;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 12px;
+    margin-top: 8px;
+  }
+  .quote-total-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 4px;
+  }
+  .quote-total-main {
+    display: flex;
+    justify-content: space-between;
+    font-weight: 900;
+    font-size: 16px;
+    border-top: 2px solid var(--primary);
+    padding-top: 6px;
+    color: var(--primary);
+  }
+
+  /* ===== TIMELINE ===== */
+  .timeline-container {
+    width: 100%;
+    max-width: 900px;
+    margin-top: 3vh;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+  .tl-row {
+    display: flex;
+    align-items: center;
+    gap: 2vw;
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+  .tl-day-badge {
+    width: 100px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+  .tl-day-badge span {
+    display: inline-block;
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 1px;
+  }
+  .tl-line {
+    width: 3px;
+    height: 40px;
+    background: linear-gradient(180deg, var(--primary), var(--accent));
+    border-radius: 2px;
+    flex-shrink: 0;
+    margin-left: 50px;
+    opacity: 0;
+  }
+  .tl-dot {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    box-shadow: 0 0 0 3px rgba(30,58,95,0.1);
+  }
+  .tl-content {
+    flex: 1;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 2vh 2vw;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+  }
+  .tl-content h3 {
+    font-size: clamp(16px, 1.2vw, 22px);
+    font-weight: 700;
+    margin-bottom: 4px;
+    color: var(--text);
+  }
+  .tl-content p {
+    font-size: clamp(13px, 0.9vw, 17px);
+    color: var(--text-sub);
+    line-height: 1.7;
+  }
+
+  /* ===== RESULT CARDS (individual pages) ===== */
+  .result-page {
+    background: #FAFBFC;
+  }
+  .result-single {
+    width: 100%;
+    max-width: 800px;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    padding: 6vh 4vw;
+    text-align: center;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.04);
+    opacity: 0;
+    transform: translateY(40px);
+  }
+  .result-single .r-icon {
+    font-size: 56px;
+    margin-bottom: 2vh;
+  }
+  .result-single .r-number {
+    font-size: clamp(48px, 5vw, 80px);
+    font-weight: 900;
+    margin-bottom: 1vh;
+  }
+  .result-single .r-label {
+    font-size: clamp(20px, 1.6vw, 28px);
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 1vh;
+  }
+  .result-single .r-desc {
+    font-size: clamp(15px, 1.1vw, 20px);
+    color: var(--text-sub);
+    line-height: 1.8;
+  }
+
+  /* ===== CTA ===== */
+  .scene-cta {
+    background: #FAFBFC;
+    gap: 3vh;
+  }
+  .cta-icon {
+    font-size: 64px;
+    opacity: 0;
+    transform: scale(0);
+  }
+  .cta-title {
+    font-size: clamp(28px, 3.3vw, 56px);
+    font-weight: 900;
+    text-align: center;
+    opacity: 0;
+    transform: translateY(30px);
+    color: var(--text);
+  }
+  .cta-title .highlight {
+    color: var(--primary);
+  }
+  .cta-sub {
+    font-size: clamp(16px, 1.4vw, 24px);
+    color: var(--text-sub);
+    text-align: center;
+    opacity: 0;
+    transform: translateY(20px);
+    line-height: 1.8;
+  }
+  .cta-button {
+    padding: 16px 40px;
+    background: var(--primary);
+    border-radius: 12px;
+    font-size: 18px;
+    font-weight: 700;
+    opacity: 0;
+    transform: translateY(20px);
+    box-shadow: 0 8px 24px rgba(30,58,95,0.2);
+    cursor: pointer;
+    border: none;
+    color: white;
+    font-family: inherit;
+    transition: all 0.2s;
+  }
+  .cta-button:hover {
+    background: var(--primary-l);
+    transform: translateY(-2px);
+    box-shadow: 0 12px 32px rgba(30,58,95,0.3);
+  }
+
+  /* ===== DEMO MEETING PAGE ===== */
+  .demo-meeting-grid {
+    display: flex;
+    gap: 4vw;
+    width: 100%;
+    align-items: center;
+  }
+  .demo-meeting-visual {
+    flex: 1;
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+  .demo-meeting-text {
+    flex: 1;
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  .demo-meeting-text h2 {
+    font-size: clamp(22px, 2vw, 32px);
+    font-weight: 800;
+    margin-bottom: 2vh;
+    color: var(--text);
+  }
+  .demo-meeting-text p {
+    font-size: clamp(15px, 1.1vw, 20px);
+    color: var(--text-sub);
+    line-height: 2;
+  }
+  .demo-step-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #EBF5FF;
+    border: 1px solid #BEE3F8;
+    padding: 6px 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--primary);
+    margin-bottom: 2vh;
+  }
+
+  /* ===== STAT BOXES in demo ===== */
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+  }
+  .stat-box {
+    background: #F8FAFC;
+    border-radius: 6px;
+    padding: 6px;
+    text-align: center;
+    border: 1px solid #E2E8F0;
+  }
+  .stat-box-label {
+    font-size: 8px;
+    font-weight: 700;
+    color: #94A3B8;
+    letter-spacing: 0.5px;
+  }
+  .stat-box-value {
+    font-size: 13px;
+    font-weight: 900;
+    color: #1E3A5F;
+    margin-top: 2px;
+  }
+
+  /* ===== WH grid ===== */
+  .wh-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+  }
+  .wh-box {
+    background: #fff;
+    border: 1px solid #E2E8F0;
+    border-radius: 6px;
+    padding: 6px;
+    text-align: center;
+  }
+  .wh-box.pri { border-color: #2D6A4F; background: #D8F3DC; }
+  .wh-box-name {
+    font-size: 10px;
+    font-weight: 700;
+    color: #334155;
+  }
+  .wh-box-stock {
+    font-size: 13px;
+    font-weight: 900;
+    color: #2D6A4F;
+    margin-top: 2px;
+  }
+
+  .demo-card {
+    background: #fff;
+    border-radius: 8px;
+    border: 1px solid #E2E8F0;
+    overflow: hidden;
+  }
+  .demo-card-hd {
+    padding: 6px 12px;
+    border-bottom: 1px solid #E2E8F0;
+    font-size: 12px;
+    font-weight: 700;
+    color: #1E3A5F;
+  }
+  .demo-card-bd {
+    padding: 10px 12px;
+  }
+
+  .demo-btn {
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 9px;
+    font-weight: 700;
+    color: #fff;
+    border: none;
+    white-space: nowrap;
+  }
+  .demo-btn-nv { background: #1E3A5F; }
+  .demo-btn-gn { background: #2D6A4F; }
+  .demo-btn-pr { background: #7C3AED; }
+  .demo-btn-or { background: #D97706; }
+  .demo-act-row {
+    display: flex;
+    gap: 4px;
+    margin-top: 6px;
+  }
+
+  /* color dots */
+  .color-dot-row { display: flex; gap: 3px; flex-wrap: wrap; }
+  .color-dot {
+    width: 14px; height: 14px;
+    border-radius: 3px;
+    border: 1px solid rgba(0,0,0,0.08);
+  }
+  .color-dot.sel {
+    border: 2px solid #1E3A5F;
+    box-shadow: 0 0 0 1px rgba(30,58,95,0.3);
+  }
+  .demo-select {
+    background: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 11px;
+    color: #334155;
+  }
+  .demo-input {
+    background: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 12px;
+    color: #334155;
+    text-align: center;
+    font-weight: 700;
+    width: 50px;
+  }
+
+  /* ===== SPLIT LAYOUT (mockup left + text right) ===== */
+  .split-layout {
+    display: flex;
+    gap: 3vw;
+    width: 100%;
+    align-items: center;
+  }
+  .split-mockup {
+    flex: 1.1;
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+  .split-mockup .browser-mock {
+    max-width: 100%;
+    margin-top: 0;
+  }
+  .split-text {
+    flex: 1;
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  .split-text h2 {
+    font-size: clamp(20px, 1.8vw, 32px);
+    font-weight: 800;
+    margin-bottom: 2vh;
+    color: var(--text);
+    line-height: 1.5;
+  }
+  .split-text p {
+    font-size: clamp(14px, 1.1vw, 19px);
+    color: var(--text-sub);
+    line-height: 1.9;
+    margin-bottom: 1.5vh;
+  }
+  .split-text .highlight-box {
+    margin-top: 2vh;
+    background: #FFF5F5;
+    border: 1px solid #FED7D7;
+    border-radius: 10px;
+    padding: 1.5vh 1.5vw;
+  }
+  .split-text .highlight-box p {
+    color: #9B2C2C;
+    font-weight: 600;
+    font-size: clamp(13px, 0.95vw, 16px);
+    margin-bottom: 0;
+  }
+  .split-text .feature-bullets {
+    margin-top: 1.5vh;
+    display: flex;
+    flex-direction: column;
+    gap: 1vh;
+  }
+  .split-text .fb-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 1vh 1vw;
+    background: #F8FAFC;
+    border-radius: 10px;
+    border: 1px solid #EEF2F6;
+  }
+  .split-text .fb-item .fb-icon {
+    font-size: 20px;
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    background: #EBF5FF;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .split-text .fb-item h4 {
+    font-size: clamp(13px, 0.9vw, 16px);
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 1px;
+  }
+  .split-text .fb-item p {
+    font-size: clamp(12px, 0.8vw, 14px);
+    line-height: 1.5;
+    margin-bottom: 0;
+  }
+
+  /* excel tabs */
+  .excel-tabs {
+    background: #f3f3f3;
+    border-top: 1px solid #d4d4d4;
+    padding: 3px 6px;
+    display: flex;
+    gap: 1px;
+  }
+  .excel-tab {
+    padding: 3px 10px;
+    font-size: 9px;
+    background: #e8e8e8;
+    border: 1px solid #c8c8c8;
+    border-bottom: none;
+    border-radius: 3px 3px 0 0;
+    color: #555;
+  }
+  .excel-tab.active {
+    background: #fff;
+    font-weight: 700;
+    color: #333;
+  }
+  .excel-ribbon {
+    background: #f3f3f3;
+    border-bottom: 1px solid #d4d4d4;
+    padding: 2px 8px;
+    display: flex;
+    gap: 12px;
+    font-size: 10px;
+    color: #555;
+  }
+
+  /* ===== ANIM ===== */
+  @keyframes sceneIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes sceneOut {
+    from { opacity: 1; }
+    to { opacity: 0; }
+  }
+</style>
+</head>
+<body>
+
+<div class="progress-bar" id="progressBar"></div>
+<div class="scene-indicators" id="sceneIndicators"></div>
+<div class="controls">
+  <div class="ctrl-btn" onclick="prevScene()">&#9664;</div>
+  <div class="ctrl-btn" id="playPauseBtn" onclick="toggleAutoPlay()">&#9646;&#9646;</div>
+  <div class="ctrl-btn" onclick="nextScene()">&#9654;</div>
+</div>
+
+<!-- ===== SCENE 1: TITLE ===== -->
+<div class="scene scene1" id="scene1">
+  <div class="title-badge" data-anim="fadeInUp" data-delay="300">
+    <span class="dot"></span>
+    CASE STUDY
+  </div>
+  <div class="title-main" data-anim="fadeInUp" data-delay="600">
+    Excel管理からの脱却<br>
+    <span class="gradient-text">在庫・受注管理システム導入事例</span>
+  </div>
+  <div class="title-sub" data-anim="fadeInUp" data-delay="900">
+    お客様との打ち合わせ中にデモを作成し、認識のズレなく開発。<br>
+    1ヶ月で本番稼働、2〜3ヶ月で現場に最適化した事例をご紹介します。
+  </div>
+</div>
+
+<!-- ===== SCENE 2: OVERVIEW (課題 と 解決) ===== -->
+<div class="scene" id="scene2" style="background:#FAFBFC">
+  <div class="scene-header" data-anim="fadeInLeft" data-delay="200">
+    <div class="scene-number">01</div>
+    <div class="scene-title">プロジェクト全体像</div>
+  </div>
+  <div class="overview-container">
+    <div class="overview-box challenge" data-anim="fadeInUp" data-delay="400">
+      <div class="overview-box-label">BEFORE &#8212; 課題</div>
+      <ul>
+        <li>複数のExcelファイルで在庫・受注・顧客を個別管理</li>
+        <li>4拠点の倉庫在庫を手入力、転記ミス・欠品が頻発</li>
+        <li>帳票作成に毎回30分以上、金額計算ミスも発生</li>
+        <li>担当者しか分からない属人的な運用</li>
+      </ul>
+    </div>
+    <div class="overview-box solution" data-anim="fadeInUp" data-delay="600">
+      <div class="overview-box-label">AFTER &#8212; 解決</div>
+      <ul>
+        <li>専用Webシステムで在庫・受注・顧客を一元管理</li>
+        <li>リアルタイム在庫管理で転記ミスゼロに</li>
+        <li>帳票をワンクリックで自動生成</li>
+        <li>誰でも使えるシンプルな操作性</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCENE 3: 課題① Excel管理 ===== -->
+<div class="scene problem-page" id="scene3">
+  <div class="scene-header" data-anim="fadeInLeft" data-delay="200">
+    <div class="scene-number">02</div>
+    <div class="scene-title">課題 &#9312; &#8212; 複数Excelの手動管理</div>
+  </div>
+  <div class="split-layout">
+    <div class="split-mockup" data-anim="fadeInLeft" data-delay="400">
+      <div class="browser-mock outdated" style="position:relative">
+        <div class="browser-bar">
+          <div class="browser-dot r"></div>
+          <div class="browser-dot y"></div>
+          <div class="browser-dot g"></div>
+          <div class="browser-url">在庫管理_最新版(3)_final_v2.xlsx</div>
+        </div>
+        <div class="excel-content">
+          <div class="excel-toolbar">
+            <span>&#128215; Excel</span>
+            <span style="font-weight:400">ファイル</span>
+            <span style="font-weight:400">ホーム</span>
+            <span style="font-weight:400">数式</span>
+          </div>
+          <div class="excel-ribbon">
+            <span>&#128292; MSPゴシック</span>
+            <span>10</span>
+            <span><b>B</b> <i>I</i> <u>U</u></span>
+            <span>罫線</span>
+          </div>
+          <div class="excel-formula">
+            <span>fx</span> =VLOOKUP(B12,在庫マスタ!$A:$F,4,FALSE)
+          </div>
+          <table class="excel-table">
+            <tr><th class="col-header"></th><th class="col-header">A</th><th class="col-header">B</th><th class="col-header">C</th><th class="col-header">D</th><th class="col-header">E</th><th class="col-header">F</th></tr>
+            <tr><td class="col-header">1</td><td colspan="6" style="font-weight:900;text-align:center;background:#E8F0FE;font-size:12px">在庫管理表</td></tr>
+            <tr><td class="col-header">2</td><td style="font-weight:700;background:#e8e8e8">倉庫</td><td style="font-weight:700;background:#e8e8e8">サイズ</td><td style="font-weight:700;background:#e8e8e8">上下ボード</td><td style="font-weight:700;background:#e8e8e8">サイドB</td><td style="font-weight:700;background:#e8e8e8">扉</td><td style="font-weight:700;background:#e8e8e8">フリー</td></tr>
+            <tr><td class="col-header">3</td><td>本社</td><td>S</td><td class="cell-err">0</td><td>13</td><td>24</td><td class="cell-err">0台</td></tr>
+            <tr><td class="col-header">4</td><td>本社</td><td>M</td><td>53</td><td>33</td><td class="cell-warn">8</td><td class="cell-warn">8台</td></tr>
+            <tr><td class="col-header">5</td><td>第一倉庫</td><td>S</td><td>84</td><td>96</td><td>59</td><td>38台</td></tr>
+            <tr><td class="col-header">6</td><td>第一倉庫</td><td>M</td><td>84</td><td>58</td><td class="cell-err">1</td><td class="cell-err">1台</td></tr>
+            <tr><td class="col-header">7</td><td>第二倉庫</td><td>3S</td><td class="cell-err">0</td><td>316</td><td class="cell-err">0</td><td class="cell-err">0台</td></tr>
+          </table>
+          <div class="excel-tabs">
+            <div class="excel-tab active">在庫一覧</div>
+            <div class="excel-tab">受注管理</div>
+            <div class="excel-tab">顧客リスト</div>
+            <div class="excel-tab">見積テンプレ</div>
+            <div class="excel-tab">出荷指示</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="split-text" data-anim="fadeInLeft" data-delay="600">
+      <h2>すべてが別々のExcelファイルで管理</h2>
+      <p>
+        在庫管理表、受注管理表、顧客リスト、帳票テンプレートなど、業務に必要なデータがすべて別々のExcelファイルで管理されていました。
+      </p>
+      <p>
+        更新のたびに複数のファイルを開き直し、VLOOKUP関数で参照しながら手作業で転記。ファイル名も「最新版_v2_final」のように乱立し、どれが最新か分からない状態でした。
+      </p>
+      <div class="highlight-box">
+        <p>1つの受注処理に在庫表・顧客リスト・見積テンプレートの3ファイルを同時に開く必要があり、作業効率が大幅に低下。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCENE 4: 課題② 在庫ミス ===== -->
+<div class="scene problem-page" id="scene4">
+  <div class="scene-header" data-anim="fadeInLeft" data-delay="200">
+    <div class="scene-number">03</div>
+    <div class="scene-title">課題 &#9313; &#8212; 在庫の二重管理・転記ミス</div>
+  </div>
+  <div class="split-layout">
+    <div class="split-mockup" data-anim="fadeInLeft" data-delay="400">
+      <div class="browser-mock" style="position:relative">
+        <div class="browser-bar">
+          <div class="browser-dot r"></div>
+          <div class="browser-dot y"></div>
+          <div class="browser-dot g"></div>
+          <div class="browser-url">受注管理_最終版.xlsx</div>
+        </div>
+        <div class="excel-content">
+          <div class="excel-toolbar">
+            <span>&#128215; Excel</span>
+            <span style="font-weight:400">ファイル</span>
+            <span style="font-weight:400">ホーム</span>
+          </div>
+          <div class="excel-formula"><span>fx</span> =IF(E5="確定",SUMIF(在庫!C:C,B5,在庫!F:F)-D5,"&#8212;")</div>
+          <table class="excel-table">
+            <tr><th class="col-header"></th><th class="col-header">A</th><th class="col-header">B</th><th class="col-header">C</th><th class="col-header">D</th><th class="col-header">E</th><th class="col-header">F</th></tr>
+            <tr><td class="col-header">1</td><td colspan="6" style="font-weight:900;text-align:center;background:#E8F0FE;font-size:12px">受注管理表</td></tr>
+            <tr><td class="col-header">2</td><td style="font-weight:700;background:#e8e8e8">受注No</td><td style="font-weight:700;background:#e8e8e8">顧客</td><td style="font-weight:700;background:#e8e8e8">商品</td><td style="font-weight:700;background:#e8e8e8">数量</td><td style="font-weight:700;background:#e8e8e8">状態</td><td style="font-weight:700;background:#e8e8e8">在庫残</td></tr>
+            <tr><td class="col-header">3</td><td>001</td><td>A小学校</td><td>S ピンク</td><td>30</td><td style="background:#D8F3DC">完了</td><td>32</td></tr>
+            <tr><td class="col-header">4</td><td>002</td><td>B小学校</td><td>M ブルー</td><td>50</td><td class="cell-warn" style="background:#FFF0E0">準備中</td><td class="cell-err">-3</td></tr>
+            <tr><td class="col-header">5</td><td>003</td><td>C中学校</td><td>M ブルー</td><td>80</td><td class="cell-warn" style="background:#FFF3CD">見積中</td><td class="cell-warn">?</td></tr>
+            <tr><td class="col-header">6</td><td>004</td><td>D高等学校</td><td>S ブラウン</td><td>100</td><td class="cell-warn" style="background:#FFF0E0">指示書</td><td class="cell-err">-12</td></tr>
+            <tr><td class="col-header">7</td><td>005</td><td>E高等学校</td><td>M グリーン</td><td>60</td><td style="background:#F3E8FF">仮押え</td><td class="cell-warn">?</td></tr>
+          </table>
+          <div class="excel-tabs">
+            <div class="excel-tab active">受注一覧</div>
+            <div class="excel-tab">在庫</div>
+            <div class="excel-tab">顧客</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="split-text" data-anim="fadeInLeft" data-delay="600">
+      <h2>4拠点の在庫を手入力。二重出荷・欠品が頻発</h2>
+      <p>
+        4つの倉庫にある在庫を、部材（ボード・サイドパネル・扉など）単位で手動管理。受注のたびに在庫数を手作業で確認・更新していました。
+      </p>
+      <p>
+        転記漏れや計算ミスが避けられず、同じ在庫を二重に引き当ててしまう二重出荷や、在庫があるのに「欠品」と判断してしまうケースが頻発。
+      </p>
+      <div class="highlight-box">
+        <p>繁忙期には在庫確認だけで数十分。在庫残がマイナスや「?」の状態も放置されていました。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCENE 5: 課題③ 帳票 ===== -->
+<div class="scene problem-page" id="scene5">
+  <div class="scene-header" data-anim="fadeInLeft" data-delay="200">
+    <div class="scene-number">04</div>
+    <div class="scene-title">課題 &#9314; &#8212; 帳票作成に毎回30分以上</div>
+  </div>
+  <div class="split-layout">
+    <div class="split-mockup" data-anim="fadeInLeft" data-delay="400">
+      <div class="browser-mock">
+        <div class="browser-bar">
+          <div class="browser-dot r"></div>
+          <div class="browser-dot y"></div>
+          <div class="browser-dot g"></div>
+          <div class="browser-url">見積書テンプレート_v3.xlsx</div>
+        </div>
+        <div class="excel-content">
+          <div class="excel-toolbar">
+            <span>&#128215; Excel</span>
+            <span style="font-weight:400">ファイル</span>
+            <span style="font-weight:400">ホーム</span>
+          </div>
+          <table class="excel-table">
+            <tr><th class="col-header"></th><th class="col-header">A</th><th class="col-header">B</th><th class="col-header">C</th><th class="col-header">D</th><th class="col-header">E</th></tr>
+            <tr><td class="col-header">1</td><td colspan="5" style="font-weight:900;text-align:center;font-size:14px">御 見 積 書</td></tr>
+            <tr><td class="col-header">2</td><td colspan="3" style="font-size:11px">A小学校 御中</td><td colspan="2" style="text-align:right;font-size:10px;color:#64748b">日付: ___/___/___</td></tr>
+            <tr><td class="col-header">3</td><td style="font-weight:700;background:#e8e8e8">商品名</td><td style="font-weight:700;background:#e8e8e8">数量</td><td style="font-weight:700;background:#e8e8e8">単価</td><td style="font-weight:700;background:#e8e8e8">金額</td><td style="font-weight:700;background:#e8e8e8">備考</td></tr>
+            <tr><td class="col-header">4</td><td class="cell-warn" style="font-size:11px">Sサイズ ピンク ← 手入力</td><td>30</td><td>&#165;8,300</td><td style="font-weight:700">&#165;249,000</td><td style="font-size:10px;color:#94a3b8">初回</td></tr>
+            <tr><td class="col-header">5</td><td class="cell-warn" style="font-size:11px">送料 ← 手計算</td><td>1</td><td class="cell-warn">&#165;???</td><td class="cell-err">&#165;???</td><td style="font-size:10px;color:#94a3b8">距離確認</td></tr>
+            <tr><td class="col-header">6</td><td colspan="3" style="text-align:right;font-weight:700">小計</td><td style="font-weight:700">&#165;249,000</td><td></td></tr>
+            <tr><td class="col-header">7</td><td colspan="3" style="text-align:right">消費税(10%)</td><td class="cell-warn">&#165;24,900</td><td style="font-size:9px;color:#dc2626">要確認</td></tr>
+            <tr><td class="col-header">8</td><td colspan="3" style="text-align:right;font-weight:900">合計</td><td class="cell-warn" style="font-weight:900">&#165;273,900</td><td style="font-size:9px;color:#dc2626">送料未加算!</td></tr>
+          </table>
+          <div class="excel-tabs">
+            <div class="excel-tab active">見積書</div>
+            <div class="excel-tab">請求書</div>
+            <div class="excel-tab">納品書</div>
+            <div class="excel-tab">出荷指示</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="split-text" data-anim="fadeInLeft" data-delay="600">
+      <h2>見積書・請求書・納品書を手入力で作成</h2>
+      <p>
+        受注のたびにExcelテンプレートに商品名・数量・単価を手入力。送料は距離を調べて手計算、消費税も手動で算出していました。
+      </p>
+      <p>
+        1件の帳票作成に30分以上かかり、繁忙期には帳票作成だけで1日の大半が費やされることも。
+      </p>
+      <div class="highlight-box">
+        <p>帳票の種類ごとにテンプレートが異なり、同じ情報を何度も入力。送料未加算のまま提出するミスも発生。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCENE 6: 開発スタイル（打ち合わせ中デモ） ===== -->
+<div class="scene" id="scene6" style="background:#FAFBFC">
+  <div class="scene-header" data-anim="fadeInLeft" data-delay="200">
+    <div class="scene-number">05</div>
+    <div class="scene-title">打ち合わせ中にデモを作成する開発スタイル</div>
+  </div>
+  <div class="flow-container">
+    <div class="flow-step" data-anim="fadeInUp" data-delay="400">
+      <div class="flow-icon-wrap">💬</div>
+      <h3>STEP 1</h3>
+      <p><strong>業務ヒアリング</strong></p>
+      <p>現場の課題と業務フローを<br>打ち合わせで直接確認</p>
+    </div>
+    <div class="flow-arrow" data-anim="fadeIn" data-delay="700">&#10132;</div>
+    <div class="flow-step" data-anim="fadeInUp" data-delay="800">
+      <div class="flow-icon-wrap">🤖</div>
+      <h3>STEP 2</h3>
+      <p><strong>その場でデモ構築</strong></p>
+      <p>AIを活用しコードを生成<br>動くデモをその場で提示</p>
+    </div>
+    <div class="flow-arrow" data-anim="fadeIn" data-delay="1100">&#10132;</div>
+    <div class="flow-step" data-anim="fadeInUp" data-delay="1200">
+      <div class="flow-icon-wrap">👀</div>
+      <h3>STEP 3</h3>
+      <p><strong>画面を見ながら調整</strong></p>
+      <p>お客様と画面を共有し<br>リアルタイムで修正</p>
+    </div>
+    <div class="flow-arrow" data-anim="fadeIn" data-delay="1500">&#10132;</div>
+    <div class="flow-step" data-anim="fadeInUp" data-delay="1600">
+      <div class="flow-icon-wrap">🚀</div>
+      <h3>STEP 4</h3>
+      <p><strong>認識のズレなく開発</strong></p>
+      <p>合意したデモをベースに<br>本番環境を構築</p>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCENE 7: デモ打ち合わせ詳細 ===== -->
+<div class="scene" id="scene7" style="background:#FAFBFC">
+  <div class="scene-header" data-anim="fadeInLeft" data-delay="200">
+    <div class="scene-number">06</div>
+    <div class="scene-title">打ち合わせ中のデモ作成とは</div>
+  </div>
+  <div class="demo-meeting-grid">
+    <div class="demo-meeting-visual" data-anim="fadeInLeft" data-delay="400">
+      <div class="browser-mock app">
+        <div class="browser-bar app">
+          <div class="browser-dot r"></div>
+          <div class="browser-dot y"></div>
+          <div class="browser-dot g"></div>
+          <div class="browser-url">demo-preview.app &#8212; リアルタイムデモ</div>
+        </div>
+        <div>
+          <div class="demo-app-header">
+            <div class="demo-logo">DEMO</div>
+            <span style="opacity:0.7">在庫管理プレビュー</span>
+            <div class="demo-tabs-bar">
+              <div class="demo-tab active">在庫確認</div>
+              <div class="demo-tab">受注</div>
+            </div>
+          </div>
+          <div class="demo-body" style="padding:10px">
+            <div style="display:flex;gap:8px">
+              <div style="flex:1">
+                <div class="demo-card" style="margin-bottom:6px">
+                  <div class="demo-card-hd">&#128269; 在庫検索</div>
+                  <div class="demo-card-bd">
+                    <div style="display:flex;gap:4px;margin-bottom:4px">
+                      <div class="demo-select" style="flex:1">Sサイズ</div>
+                      <div class="demo-select" style="flex:1">常設タイプ</div>
+                    </div>
+                    <div class="color-dot-row" style="margin-bottom:6px">
+                      <div class="color-dot" style="background:#A8D5E2"></div>
+                      <div class="color-dot" style="background:#A8D8A0"></div>
+                      <div class="color-dot sel" style="background:#F4B4C4"></div>
+                      <div class="color-dot" style="background:#F4E5A0"></div>
+                      <div class="color-dot" style="background:#C4A882"></div>
+                    </div>
+                    <div style="display:flex;gap:4px;align-items:center">
+                      <div class="demo-input">30</div>
+                      <div class="demo-btn demo-btn-nv">&#65291;追加</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div style="flex:1">
+                <div style="background:#fff;border:2px solid #D8F3DC;border-radius:8px;padding:10px">
+                  <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+                    <span style="font-size:18px">&#9989;</span>
+                    <div>
+                      <div style="font-size:14px;font-weight:800;color:#1E3A5F">在庫あり</div>
+                      <div style="font-size:10px;color:#64748B">30台</div>
+                    </div>
+                  </div>
+                  <div class="stat-grid">
+                    <div class="stat-box"><div class="stat-box-label">倉庫</div><div class="stat-box-value" style="font-size:10px">本社</div></div>
+                    <div class="stat-box"><div class="stat-box-label">送料</div><div class="stat-box-value">&#165;2,805</div></div>
+                    <div class="stat-box"><div class="stat-box-label">納期</div><div class="stat-box-value">2日</div></div>
+                    <div class="stat-box"><div class="stat-box-label">箱数</div><div class="stat-box-value">2箱</div></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="demo-meeting-text" data-anim="fadeInLeft" data-delay="600">
+      <div class="demo-step-badge">&#128161; 打ち合わせ中に実施</div>
+      <h2>お客様の目の前で動くものを見せながらすり合わせ</h2>
+      <p>
+        従来のシステム開発では、要件定義書をもとに数ヶ月開発した後に初めて画面を確認します。<br><br>
+        私たちの開発スタイルでは、初回の打ち合わせ中にAIを活用して簡単なデモを作成。<br><br>
+        「こんなイメージです」と動く画面を見せながら、その場でフィードバックをいただき修正します。<br><br>
+        <strong style="color:var(--primary)">認識のズレを最小限に抑え、手戻りのない開発を実現します。</strong>
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCENE 8: デモ紹介 - 在庫確認 ===== -->
+<div class="scene" id="scene8" style="background:#FAFBFC">
+  <div class="scene-header" data-anim="fadeInLeft" data-delay="200">
+    <div class="scene-number">07</div>
+    <div class="scene-title">機能紹介 &#8212; 在庫確認 &amp; 新規受注</div>
+  </div>
+  <div class="split-layout">
+    <div class="split-mockup" data-anim="fadeInLeft" data-delay="400">
+      <div class="browser-mock app">
+        <div class="browser-bar app">
+          <div class="browser-dot r"></div>
+          <div class="browser-dot y"></div>
+          <div class="browser-dot g"></div>
+          <div class="browser-url">在庫確認 &amp; 新規受注画面</div>
+        </div>
+        <div>
+          <div class="demo-app-header">
+            <div class="demo-logo">SYSTEM</div>
+            <div class="demo-tabs-bar">
+              <div class="demo-tab">顧客管理</div>
+              <div class="demo-tab active">在庫・新規</div>
+              <div class="demo-tab">受注管理</div>
+            </div>
+          </div>
+          <div class="demo-body" style="display:flex;gap:8px;padding:10px">
+            <!-- Left: Form -->
+            <div style="width:45%;flex-shrink:0">
+              <div style="background:linear-gradient(135deg,#142A45,#1E3A5F);color:#fff;border-radius:6px;padding:6px 10px;margin-bottom:6px;font-size:12px;display:flex;align-items:center;gap:8px">
+                <b>A小学校</b>
+                <span style="opacity:0.7;font-size:10px">東京都</span>
+              </div>
+              <div class="demo-card" style="margin-bottom:6px">
+                <div class="demo-card-hd">商品追加</div>
+                <div class="demo-card-bd">
+                  <div style="display:flex;gap:4px;margin-bottom:4px">
+                    <div class="demo-select" style="flex:1">Sサイズ</div>
+                    <div class="demo-select" style="flex:1">常設タイプ</div>
+                  </div>
+                  <div style="font-size:9px;font-weight:600;color:#94A3B8;margin:4px 0 2px">カラー</div>
+                  <div class="color-dot-row" style="margin-bottom:6px">
+                    <div class="color-dot" style="background:#A8D5E2"></div>
+                    <div class="color-dot" style="background:#A8D8A0"></div>
+                    <div class="color-dot sel" style="background:#F4B4C4"></div>
+                    <div class="color-dot" style="background:#F4E5A0"></div>
+                    <div class="color-dot" style="background:#C4A882"></div>
+                    <div class="color-dot" style="background:#87CEEB"></div>
+                    <div class="color-dot" style="background:#B0B8C4"></div>
+                    <div class="color-dot" style="background:#3A3A3A"></div>
+                  </div>
+                  <div style="display:flex;gap:4px;align-items:center">
+                    <div class="demo-input">30</div>
+                    <div class="demo-btn demo-btn-nv">&#65291;追加</div>
+                  </div>
+                </div>
+              </div>
+              <div class="demo-card">
+                <div class="demo-card-hd">明細 1件</div>
+                <div class="demo-card-bd" style="display:flex;align-items:center;gap:6px">
+                  <div style="width:12px;height:12px;border-radius:2px;background:#F4B4C4"></div>
+                  <span style="flex:1;font-size:11px;font-weight:600">Sサイズ｜常設｜ピンク</span>
+                  <b style="font-size:13px">30</b>
+                </div>
+              </div>
+            </div>
+            <!-- Right: Result -->
+            <div style="flex:1;min-width:0">
+              <div style="background:#fff;border:2px solid #D8F3DC;border-radius:8px;padding:10px;margin-bottom:6px">
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+                  <span style="font-size:18px">&#9989;</span>
+                  <div>
+                    <div style="font-size:14px;font-weight:800;color:#1E3A5F">在庫あり</div>
+                    <div style="font-size:10px;color:#64748B">1商品・30台</div>
+                  </div>
+                </div>
+                <div class="stat-grid">
+                  <div class="stat-box"><div class="stat-box-label">倉庫</div><div class="stat-box-value" style="font-size:11px">本社</div></div>
+                  <div class="stat-box"><div class="stat-box-label">送料</div><div class="stat-box-value">&#165;2,805</div></div>
+                  <div class="stat-box"><div class="stat-box-label">納期</div><div class="stat-box-value">2日</div></div>
+                  <div class="stat-box"><div class="stat-box-label">箱/重量</div><div class="stat-box-value" style="font-size:10px">2箱/255kg</div></div>
+                </div>
+                <div class="demo-act-row">
+                  <div class="demo-btn demo-btn-pr">&#128274; 仮押さえ</div>
+                  <div class="demo-btn demo-btn-gn">&#9989; 受注確定</div>
+                  <div class="demo-btn demo-btn-nv">&#128196; 見積書</div>
+                </div>
+              </div>
+              <div style="font-size:9px;font-weight:700;color:#94A3B8;margin-bottom:4px">&#128202; 倉庫別在庫</div>
+              <div class="wh-grid">
+                <div class="wh-box pri"><div class="wh-box-name">本社</div><div class="wh-box-stock">62台</div></div>
+                <div class="wh-box"><div class="wh-box-name">第一倉庫</div><div class="wh-box-stock">38台</div></div>
+                <div class="wh-box"><div class="wh-box-name">第二倉庫</div><div class="wh-box-stock">0台</div></div>
+                <div class="wh-box"><div class="wh-box-name">第三倉庫</div><div class="wh-box-stock">0台</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="split-text" data-anim="fadeInLeft" data-delay="600">
+      <h2>複数倉庫の在庫をリアルタイムで検索・引当</h2>
+      <div class="feature-bullets">
+        <div class="fb-item">
+          <div class="fb-icon">&#128269;</div>
+          <div><h4>倉庫在庫を即時検索</h4><p>部材単位でフリー在庫を自動計算</p></div>
+        </div>
+        <div class="fb-item">
+          <div class="fb-icon">&#127912;</div>
+          <div><h4>商品バリエーションに対応</h4><p>複数カラー・タイプをワンクリック選択</p></div>
+        </div>
+        <div class="fb-item">
+          <div class="fb-icon">&#128666;</div>
+          <div><h4>送料・納期を自動計算</h4><p>距離・重量から配送方法を自動判定</p></div>
+        </div>
+        <div class="fb-item">
+          <div class="fb-icon">&#128274;</div>
+          <div><h4>仮押さえで在庫を制御</h4><p>ホールド→確定→復元を自動処理</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCENE 9: デモ紹介 - 受注ワークフロー ===== -->
+<div class="scene" id="scene9" style="background:#FAFBFC">
+  <div class="scene-header" data-anim="fadeInLeft" data-delay="200">
+    <div class="scene-number">08</div>
+    <div class="scene-title">機能紹介 &#8212; 受注ワークフロー &amp; 案件詳細</div>
+  </div>
+  <div class="split-layout">
+    <div class="split-mockup" data-anim="fadeInLeft" data-delay="400">
+      <div class="browser-mock app">
+        <div class="browser-bar app">
+          <div class="browser-dot r"></div>
+          <div class="browser-dot y"></div>
+          <div class="browser-dot g"></div>
+          <div class="browser-url">案件詳細 &#8212; ORD-002</div>
+        </div>
+        <div>
+          <div class="demo-app-header">
+            <div class="demo-logo">SYSTEM</div>
+            <span style="opacity:0.7">ORD-002 案件詳細</span>
+          </div>
+          <div class="demo-body" style="padding:10px">
+            <div class="wf-bar" style="margin-bottom:8px">
+              <div class="wf-step done">見積</div>
+              <div class="wf-step done">仮押</div>
+              <div class="wf-step done">確定</div>
+              <div class="wf-step cur">準備</div>
+              <div class="wf-step">納品日</div>
+              <div class="wf-step">出荷</div>
+              <div class="wf-step">完了</div>
+            </div>
+            <div style="display:flex;gap:6px;margin-bottom:8px">
+              <div class="demo-card" style="flex:1">
+                <div class="demo-card-hd">&#128100; 顧客</div>
+                <div class="demo-card-bd" style="font-size:11px">
+                  <div style="display:flex;margin-bottom:2px"><span style="color:#64748B;width:55px;flex-shrink:0">顧客名</span><b>B小学校</b></div>
+                  <div style="display:flex;margin-bottom:2px"><span style="color:#64748B;width:55px;flex-shrink:0">所在地</span><span>宮城県</span></div>
+                  <div style="display:flex"><span style="color:#64748B;width:55px;flex-shrink:0">担当</span><span>営業担当A</span></div>
+                </div>
+              </div>
+              <div class="demo-card" style="flex:1">
+                <div class="demo-card-hd">&#128203; 受注情報</div>
+                <div class="demo-card-bd" style="font-size:11px">
+                  <div style="display:flex;margin-bottom:2px"><span style="color:#64748B;width:65px;flex-shrink:0">ステータス</span><span class="mini-badge bg-orange">納品日調整</span></div>
+                  <div style="display:flex;margin-bottom:2px"><span style="color:#64748B;width:65px;flex-shrink:0">倉庫</span><span>本社</span></div>
+                  <div style="display:flex"><span style="color:#64748B;width:65px;flex-shrink:0">受注日</span><span>2026/01/25</span></div>
+                </div>
+              </div>
+            </div>
+            <div class="demo-card" style="margin-bottom:6px">
+              <div class="demo-card-hd">&#128230; 商品明細（合計 70台）</div>
+              <div class="demo-card-bd" style="padding:0">
+                <table class="mini-tbl">
+                  <thead><tr><th></th><th>商品</th><th style="text-align:right">数量</th><th style="text-align:right">小計</th><th>区分</th></tr></thead>
+                  <tbody>
+                    <tr><td><div style="width:8px;height:8px;border-radius:2px;background:#A8D5E2"></div></td><td>Mサイズ｜パーソナル｜ブルー</td><td style="text-align:right;font-weight:700">50</td><td style="text-align:right">&#165;415,000</td><td>初回</td></tr>
+                    <tr><td><div style="width:8px;height:8px;border-radius:2px;background:#A8D5E2"></div></td><td>Mサイズ｜パーソナル｜ブルー</td><td style="text-align:right;font-weight:700">20</td><td style="text-align:right">&#165;166,000</td><td><span class="mini-badge bg-purple">追加</span></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="demo-act-row">
+              <div class="demo-btn demo-btn-or">&#127981; 工場依頼</div>
+              <div class="demo-btn demo-btn-nv">&#128196; 見積書</div>
+              <div class="demo-btn" style="background:#0284C7;color:#fff">&#128203; 出荷指示書</div>
+              <div class="demo-btn demo-btn-nv">&#128209; 請求書・納品書</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="split-text" data-anim="fadeInLeft" data-delay="600">
+      <h2>受注から納品まで、すべてを可視化</h2>
+      <div class="feature-bullets">
+        <div class="fb-item">
+          <div class="fb-icon">&#128203;</div>
+          <div><h4>7段階のステータス管理</h4><p>案件の進捗をひと目で把握。ワンクリックで進む/戻す</p></div>
+        </div>
+        <div class="fb-item">
+          <div class="fb-icon">&#43;</div>
+          <div><h4>途中の数量追加・変更に対応</h4><p>確定後でも追加・減少OK。在庫も自動で連動</p></div>
+        </div>
+        <div class="fb-item">
+          <div class="fb-icon">&#127981;</div>
+          <div><h4>在庫不足時は製造依頼を自動生成</h4><p>不足を検知し工場に依頼。緊急度も指定可能</p></div>
+        </div>
+        <div class="fb-item">
+          <div class="fb-icon">&#128196;</div>
+          <div><h4>帳票をワンクリックで生成</h4><p>見積書・出荷指示書・請求書をボタン1つで作成</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCENE 10: デモ紹介 - 帳票 ===== -->
+<div class="scene" id="scene10" style="background:#FAFBFC">
+  <div class="scene-header" data-anim="fadeInLeft" data-delay="200">
+    <div class="scene-number">09</div>
+    <div class="scene-title">機能紹介 &#8212; 帳票自動生成</div>
+  </div>
+  <div class="split-layout">
+    <div class="split-mockup" data-anim="fadeInLeft" data-delay="400">
+      <div class="browser-mock app">
+        <div class="browser-bar app">
+          <div class="browser-dot r"></div>
+          <div class="browser-dot y"></div>
+          <div class="browser-dot g"></div>
+          <div class="browser-url">&#128196; 御見積書プレビュー</div>
+        </div>
+        <div style="padding:12px;background:#fff">
+          <div class="quote-doc" style="max-width:100%;margin-top:0">
+            <div class="quote-title">御見積書</div>
+            <div class="quote-subtitle">下記のとおり御見積申し上げます。</div>
+            <div class="quote-parties">
+              <div class="quote-party">
+                <div class="quote-party-name">B小学校 御中</div>
+                <div class="quote-party-info">宮城県<br>顧客コード D00019</div>
+              </div>
+              <div class="quote-party" style="text-align:right">
+                <div class="quote-party-name">株式会社 &#9679;&#9679;&#9679;&#9679;</div>
+                <div class="quote-party-info">東京都<br>TEL. 03-XXXX-XXXX</div>
+              </div>
+            </div>
+            <div class="quote-amount">見積金額: &#165;641,300</div>
+            <table class="mini-tbl" style="margin:6px 0">
+              <thead><tr><th>商品コード</th><th>商品名称</th><th style="text-align:right">数量</th><th>単位</th><th style="text-align:right">単価</th><th style="text-align:right">金額</th></tr></thead>
+              <tbody>
+                <tr><td>MYPL-M</td><td>Mサイズ ブルー</td><td style="text-align:right">70</td><td>台</td><td style="text-align:right">&#165;8,300</td><td style="text-align:right;font-weight:700">&#165;581,000</td></tr>
+                <tr><td>MYPL-B</td><td>ベースボード アンカー付</td><td style="text-align:right">24</td><td>枚</td><td style="text-align:right">&#165;4,000</td><td style="text-align:right;font-weight:700">&#165;96,000</td></tr>
+                <tr><td>F00063</td><td>送料（混載便）</td><td style="text-align:right">1</td><td>式</td><td style="text-align:right">&#165;2,805</td><td style="text-align:right;font-weight:700">&#165;2,805</td></tr>
+              </tbody>
+            </table>
+            <div class="quote-total-box">
+              <div class="quote-total-row"><span>税抜合計</span><span style="font-weight:700">&#165;582,550</span></div>
+              <div class="quote-total-row"><span>消費税額</span><span>&#165;58,255</span></div>
+              <div class="quote-total-main"><span>税込合計</span><span>&#165;641,300</span></div>
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;margin-top:8px;justify-content:flex-end">
+            <div class="demo-btn demo-btn-gn" style="padding:4px 12px;font-size:11px">&#128229; PDF出力</div>
+            <div class="demo-btn demo-btn-nv" style="padding:4px 12px;font-size:11px">&#128231; メール送信</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="split-text" data-anim="fadeInLeft" data-delay="600">
+      <h2>5種の帳票をワンクリックで自動生成</h2>
+      <p>受注データから見積書・請求書・納品書・物品受領書・出荷指示書を自動作成。</p>
+      <div class="feature-bullets">
+        <div class="fb-item">
+          <div class="fb-icon">&#128200;</div>
+          <div><h4>金額を完全自動計算</h4><p>単価×数量・送料・消費税すべて自動。計算ミスゼロ</p></div>
+        </div>
+        <div class="fb-item">
+          <div class="fb-icon">&#128231;</div>
+          <div><h4>メール連携で即時送付</h4><p>PDF添付メールを自動生成。ワンクリックで送信</p></div>
+        </div>
+        <div class="fb-item">
+          <div class="fb-icon">&#128100;</div>
+          <div><h4>顧客DBと連携</h4><p>顧客選択だけで宛先・倉庫・送料を自動判定</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCENE 11: Before/After (受注管理画面) ===== -->
+<div class="scene" id="scene11" style="background:#FAFBFC">
+  <div class="scene-header" data-anim="fadeInLeft" data-delay="200">
+    <div class="scene-number">10</div>
+    <div class="scene-title">Before / After &#8212; 受注管理画面</div>
+  </div>
+  <div style="display:flex;gap:4vw;width:100%;align-items:start">
+    <div style="flex:1;opacity:0;transform:translateX(-40px)" data-anim="fadeInLeft" data-delay="400">
+      <div style="display:inline-flex;align-items:center;gap:8px;padding:6px 16px;border-radius:100px;font-size:14px;font-weight:700;letter-spacing:2px;margin-bottom:2vh;background:rgba(239,68,68,0.1);color:#B91C1C">&#10060; BEFORE</div>
+      <div class="browser-mock outdated" style="position:relative;max-width:100%">
+        <div class="browser-bar">
+          <div class="browser-dot r"></div>
+          <div class="browser-dot y"></div>
+          <div class="browser-dot g"></div>
+          <div class="browser-url">受注管理_最終版.xlsx</div>
+        </div>
+        <div class="excel-content">
+          <div class="excel-toolbar">
+            <span>&#128215; Excel</span>
+            <span style="font-weight:400">ファイル</span>
+            <span style="font-weight:400">ホーム</span>
+          </div>
+          <div class="excel-formula"><span>fx</span> =IF(E5="確定",SUMIF(在庫!C:C,B5,在庫!F:F)-D5,"&#8212;")</div>
+          <table class="excel-table">
+            <tr><th class="col-header"></th><th class="col-header">A</th><th class="col-header">B</th><th class="col-header">C</th><th class="col-header">D</th><th class="col-header">E</th></tr>
+            <tr><td class="col-header">1</td><td colspan="5" style="font-weight:900;text-align:center;background:#E8F0FE;font-size:12px">受注管理表</td></tr>
+            <tr><td class="col-header">2</td><td style="font-weight:700;background:#e8e8e8">受注No</td><td style="font-weight:700;background:#e8e8e8">顧客</td><td style="font-weight:700;background:#e8e8e8">商品</td><td style="font-weight:700;background:#e8e8e8">数量</td><td style="font-weight:700;background:#e8e8e8">状態</td></tr>
+            <tr><td class="col-header">3</td><td>001</td><td>A小学校</td><td>S ピンク</td><td>30</td><td style="background:#D8F3DC">納品完了</td></tr>
+            <tr><td class="col-header">4</td><td>002</td><td>B小学校</td><td>M ブルー</td><td>50</td><td class="cell-warn" style="background:#FFF0E0">準備中</td></tr>
+            <tr><td class="col-header">5</td><td>003</td><td>C中学校</td><td>L グリーン</td><td>80</td><td class="cell-warn" style="background:#FFF3CD">見積中</td></tr>
+            <tr><td class="col-header">6</td><td>004</td><td>D高等学校</td><td>S ブラウン</td><td>100</td><td class="cell-warn" style="background:#FFF0E0">指示書</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div style="flex:0 0 60px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding-top:10vh;opacity:0" data-anim="fadeIn" data-delay="700">
+      <div style="font-size:36px;color:#CBD5E1">&#10132;</div>
+    </div>
+    <div style="flex:1;opacity:0;transform:translateX(40px)" data-anim="fadeInLeft" data-delay="600">
+      <div style="display:inline-flex;align-items:center;gap:8px;padding:6px 16px;border-radius:100px;font-size:14px;font-weight:700;letter-spacing:2px;margin-bottom:2vh;background:rgba(45,106,79,0.1);color:#276749">&#10004; AFTER</div>
+      <div class="browser-mock app">
+        <div class="browser-bar app">
+          <div class="browser-dot r"></div>
+          <div class="browser-dot y"></div>
+          <div class="browser-dot g"></div>
+          <div class="browser-url">inventory.app &#8212; 受注管理</div>
+        </div>
+        <div>
+          <div class="demo-app-header">
+            <div class="demo-logo">SYSTEM</div>
+            <span style="opacity:0.7">在庫・受注管理</span>
+            <div class="demo-tabs-bar">
+              <div class="demo-tab">顧客</div>
+              <div class="demo-tab">在庫</div>
+              <div class="demo-tab active">受注</div>
+            </div>
+          </div>
+          <div class="demo-body" style="padding:8px">
+            <div class="demo-card">
+              <table class="mini-tbl">
+                <thead><tr><th>No</th><th>顧客</th><th>商品</th><th>数量</th><th>ステータス</th><th>フロー</th></tr></thead>
+                <tbody>
+                  <tr><td style="font-weight:700">001</td><td>A小学校</td><td>S ピンク</td><td style="font-weight:700">30</td><td><span class="mini-badge bg-green">納品完了</span></td><td><div class="wf-bar"><div class="wf-step done">見積</div><div class="wf-step done">確定</div><div class="wf-step done">準備</div><div class="wf-step done">出荷</div><div class="wf-step done">完了</div></div></td></tr>
+                  <tr><td style="font-weight:700">002</td><td>B小学校</td><td>M ブルー</td><td style="font-weight:700">70</td><td><span class="mini-badge bg-orange">納品日調整</span></td><td><div class="wf-bar"><div class="wf-step done">見積</div><div class="wf-step done">確定</div><div class="wf-step done">準備</div><div class="wf-step cur">納品日</div><div class="wf-step">出荷</div></div></td></tr>
+                  <tr><td style="font-weight:700">003</td><td>D高等学校</td><td>S ブラウン</td><td style="font-weight:700">120</td><td><span class="mini-badge bg-orange">準備中</span></td><td><div class="wf-bar"><div class="wf-step done">見積</div><div class="wf-step done">確定</div><div class="wf-step cur">準備</div><div class="wf-step">納品日</div><div class="wf-step">出荷</div></div></td></tr>
+                  <tr><td style="font-weight:700">004</td><td>E高等学校</td><td>M グリーン</td><td style="font-weight:700">60</td><td><span class="mini-badge bg-purple">仮押さえ</span></td><td><div class="wf-bar"><div class="wf-step done">見積</div><div class="wf-step cur">仮押</div><div class="wf-step">確定</div><div class="wf-step">準備</div><div class="wf-step">出荷</div></div></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCENE 12: 開発タイムライン ===== -->
+<div class="scene" id="scene12" style="background:#FAFBFC;padding:5vh 6vw">
+  <div class="scene-header" data-anim="fadeInLeft" data-delay="200">
+    <div class="scene-number">11</div>
+    <div class="scene-title">開発タイムライン</div>
+  </div>
+  <div class="timeline-container">
+    <div class="tl-row" data-anim="fadeInLeft" data-delay="400">
+      <div class="tl-day-badge"><span style="background:rgba(30,58,95,0.08);color:var(--primary)">初回</span></div>
+      <div class="tl-dot" style="background:#1E3A5F"></div>
+      <div class="tl-content">
+        <h3>&#128172; 初回打ち合わせ &amp; デモ作成</h3>
+        <p>業務フローをヒアリングし、その場でデモを構築。「こんなイメージです」と動く画面で認識をすり合わせ。</p>
+      </div>
+    </div>
+    <div class="tl-line" data-anim="fadeIn" data-delay="500"></div>
+    <div class="tl-row" data-anim="fadeInLeft" data-delay="600">
+      <div class="tl-day-badge"><span style="background:rgba(42,79,122,0.08);color:#2A4F7A">1ヶ月目</span></div>
+      <div class="tl-dot" style="background:#2A4F7A"></div>
+      <div class="tl-content">
+        <h3>&#9881;&#65039; コアシステム開発 &amp; 本番稼働</h3>
+        <p>在庫管理・受注ワークフロー・帳票自動生成など基幹機能を実装。テスト完了後、現場での本番運用を開始。</p>
+      </div>
+    </div>
+    <div class="tl-line" data-anim="fadeIn" data-delay="700"></div>
+    <div class="tl-row" data-anim="fadeInLeft" data-delay="800">
+      <div class="tl-day-badge"><span style="background:rgba(45,106,79,0.08);color:var(--accent)">2ヶ月目</span></div>
+      <div class="tl-dot" style="background:#2D6A4F"></div>
+      <div class="tl-content">
+        <h3>&#128295; 現場フィードバックを反映</h3>
+        <p>実際に使い始めて出てきた要望・改善点をヒアリングし、画面の使いやすさや業務フローに合わせた調整を実施。</p>
+      </div>
+    </div>
+    <div class="tl-line" data-anim="fadeIn" data-delay="900"></div>
+    <div class="tl-row" data-anim="fadeInLeft" data-delay="1000">
+      <div class="tl-day-badge"><span style="background:rgba(124,58,237,0.08);color:#7C3AED">3ヶ月目</span></div>
+      <div class="tl-dot" style="background:#7C3AED"></div>
+      <div class="tl-content">
+        <h3>&#128640; 最適化 &amp; 安定運用</h3>
+        <p>現場に完全にフィットする形にカスタマイズを完了。運用マニュアルを整備し、安定運用フェーズへ移行。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCENE 13: 導入効果① ===== -->
+<div class="scene result-page" id="scene13">
+  <div class="scene-header" data-anim="fadeInLeft" data-delay="200">
+    <div class="scene-number">12</div>
+    <div class="scene-title">導入効果 &#9312;</div>
+  </div>
+  <div class="result-single" data-anim="fadeInUp" data-delay="400">
+    <div class="r-icon">&#9201;&#65039;</div>
+    <div class="r-number" style="color:var(--accent)" id="counter1">0%</div>
+    <div class="r-label">作業時間を削減</div>
+    <div class="r-desc">
+      在庫確認・帳票作成・ステータス管理など、<br>
+      これまで手作業で行っていた業務がすべてワンクリックに。<br>
+      1件あたり30分以上かかっていた帳票作成が数秒で完了します。
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCENE 14: 導入効果② ===== -->
+<div class="scene result-page" id="scene14">
+  <div class="scene-header" data-anim="fadeInLeft" data-delay="200">
+    <div class="scene-number">13</div>
+    <div class="scene-title">導入効果 &#9313;</div>
+  </div>
+  <div class="result-single" data-anim="fadeInUp" data-delay="400">
+    <div class="r-icon">&#127919;</div>
+    <div class="r-number" style="color:var(--primary)" id="counter2">0件</div>
+    <div class="r-label">在庫ミス・転記ミスゼロへ</div>
+    <div class="r-desc">
+      リアルタイムの在庫管理と自動計算により、<br>
+      手入力による転記ミス・二重出荷・計算ミスを完全に排除。<br>
+      「在庫があるのに欠品と判断してしまう」というトラブルもなくなりました。
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCENE 15: 導入効果③ ===== -->
+<div class="scene result-page" id="scene15">
+  <div class="scene-header" data-anim="fadeInLeft" data-delay="200">
+    <div class="scene-number">14</div>
+    <div class="scene-title">導入効果 &#9314;</div>
+  </div>
+  <div class="result-single" data-anim="fadeInUp" data-delay="400">
+    <div class="r-icon">&#128640;</div>
+    <div class="r-number" style="color:#7C3AED" id="counter3">0ヶ月</div>
+    <div class="r-label">で現場導入・最適化完了</div>
+    <div class="r-desc">
+      1ヶ月目でコアシステムを開発し本番稼働。<br>
+      2〜3ヶ月目で現場のフィードバックを反映し、<br>
+      業務に完全にフィットする形にカスタマイズしました。
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCENE 16: CTA ===== -->
+<div class="scene scene-cta" id="scene16">
+  <div class="cta-icon" data-anim="fadeInScale" data-delay="300">&#128640;</div>
+  <div class="cta-title" data-anim="fadeInUp" data-delay="600">
+    あなたの現場も<br><span class="highlight">変えてみませんか？</span>
+  </div>
+  <div class="cta-sub" data-anim="fadeInUp" data-delay="900">
+    打ち合わせでデモを確認 → 認識のズレなく開発 → 現場に最適なシステムを導入
+  </div>
+  <button class="cta-button" data-anim="fadeInUp" data-delay="1200" onclick="goToScene(0)">
+    もう一度見る &#8635;
+  </button>
+</div>
+
+<script>
+  var totalScenes = 16;
+  var currentScene = 0;
+  var autoPlayTimer = null;
+  var isAutoPlaying = true;
+  var sceneDurations = [5000, 8000, 7000, 7000, 7000, 7000, 8000, 8000, 8000, 8000, 9000, 8000, 6000, 6000, 6000, 6000];
+
+  // Create scene indicators
+  var indicatorContainer = document.getElementById('sceneIndicators');
+  for (var i = 0; i < totalScenes; i++) {
+    var dot = document.createElement('div');
+    dot.className = 'scene-dot' + (i === 0 ? ' active' : '');
+    dot.setAttribute('data-idx', i);
+    dot.onclick = function() { goToScene(parseInt(this.getAttribute('data-idx'))); };
+    indicatorContainer.appendChild(dot);
+  }
+
+  function animateElements(sceneEl) {
+    var elements = sceneEl.querySelectorAll('[data-anim]');
+    for (var i = 0; i < elements.length; i++) {
+      (function(el) {
+        var delay = parseInt(el.getAttribute('data-delay')) || 0;
+        el.style.opacity = '0';
+        setTimeout(function() {
+          el.style.transition = 'all 0.8s cubic-bezier(0.16, 1, 0.3, 1)';
+          el.style.opacity = '1';
+          el.style.transform = 'translate(0, 0) scale(1)';
+        }, delay);
+      })(elements[i]);
+    }
+  }
+
+  function resetElements(sceneEl) {
+    var elements = sceneEl.querySelectorAll('[data-anim]');
+    for (var i = 0; i < elements.length; i++) {
+      var el = elements[i];
+      el.style.transition = 'none';
+      el.style.opacity = '0';
+      var anim = el.getAttribute('data-anim');
+      if (anim === 'fadeInUp') el.style.transform = 'translateY(40px)';
+      else if (anim === 'fadeInLeft') el.style.transform = 'translateX(-40px)';
+      else if (anim === 'fadeInScale') el.style.transform = 'scale(0)';
+      else el.style.transform = 'translateY(20px)';
+    }
+  }
+
+  function goToScene(index) {
+    if (index < 0 || index >= totalScenes) return;
+    var currentEl = document.getElementById('scene' + (currentScene + 1));
+    if (currentEl) {
+      currentEl.style.animation = 'sceneOut 0.5s ease forwards';
+      setTimeout(function() {
+        currentEl.classList.remove('active');
+        currentEl.style.animation = '';
+        resetElements(currentEl);
+      }, 500);
+    }
+    currentScene = index;
+    setTimeout(function() {
+      var newEl = document.getElementById('scene' + (currentScene + 1));
+      newEl.classList.add('active');
+      newEl.style.animation = 'sceneIn 0.5s ease forwards';
+      animateElements(newEl);
+      // Counter animations
+      if (currentScene === 12) animateCounter('counter1', 0, 80, 2000, '%');
+      if (currentScene === 13) animateCounter('counter2', 5, 0, 2000, '件');
+      if (currentScene === 14) animateCounter('counter3', 0, 3, 1500, 'ヶ月');
+      // Update indicators
+      var dots = document.querySelectorAll('.scene-dot');
+      for (var j = 0; j < dots.length; j++) {
+        dots[j].className = 'scene-dot' + (j === currentScene ? ' active' : '');
+      }
+      document.getElementById('progressBar').style.width =
+        ((currentScene + 1) / totalScenes * 100) + '%';
+    }, 500);
+    if (isAutoPlaying) {
+      clearTimeout(autoPlayTimer);
+      autoPlayTimer = setTimeout(function() { nextScene(); }, sceneDurations[currentScene]);
+    }
+  }
+
+  function nextScene() {
+    goToScene(currentScene < totalScenes - 1 ? currentScene + 1 : 0);
+  }
+  function prevScene() {
+    if (currentScene > 0) goToScene(currentScene - 1);
+  }
+  function toggleAutoPlay() {
+    isAutoPlaying = !isAutoPlaying;
+    document.getElementById('playPauseBtn').innerHTML =
+      isAutoPlaying ? '&#9646;&#9646;' : '&#9654;';
+    if (isAutoPlaying) {
+      autoPlayTimer = setTimeout(function() { nextScene(); }, sceneDurations[currentScene]);
+    } else {
+      clearTimeout(autoPlayTimer);
+    }
+  }
+
+  function animateCounter(id, start, end, duration, suffix) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    var startTime = null;
+    function update(currentTime) {
+      if (!startTime) startTime = currentTime;
+      var elapsed = currentTime - startTime;
+      var progress = Math.min(elapsed / duration, 1);
+      var eased = 1 - Math.pow(1 - progress, 3);
+      var current = Math.round(start + (end - start) * eased);
+      el.textContent = current + suffix;
+      if (progress < 1) requestAnimationFrame(update);
+    }
+    setTimeout(function() { requestAnimationFrame(update); }, 500);
+  }
+
+  // Keyboard controls
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); nextScene(); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); prevScene(); }
+    if (e.key === 'p') toggleAutoPlay();
+  });
+
+  // Mouse wheel
+  var wheelCooldown = false;
+  document.addEventListener('wheel', function(e) {
+    if (wheelCooldown) return;
+    wheelCooldown = true;
+    setTimeout(function() { wheelCooldown = false; }, 1200);
+    if (e.deltaY > 0) nextScene();
+    else prevScene();
+  }, { passive: true });
+
+  // Init
+  window.addEventListener('load', function() {
+    var scene1 = document.getElementById('scene1');
+    scene1.classList.add('active');
+    animateElements(scene1);
+    document.getElementById('progressBar').style.width = (1 / totalScenes * 100) + '%';
+    autoPlayTimer = setTimeout(function() { nextScene(); }, sceneDurations[0]);
+  });
+</script>
+
+</body>
+</html>
