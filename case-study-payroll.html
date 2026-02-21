@@ -1,0 +1,1049 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI開発事例 - 給与計算業務の自動化</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700;900&family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #ffffff;
+    --bg-sub: #f5f7fa;
+    --text: #1a1a2e;
+    --text-sub: #4a5568;
+    --text-muted: #8a94a6;
+    --border: #e2e8f0;
+    --border-light: #edf2f7;
+    --accent: #1e3a5f;
+    --accent-light: #2d5a8e;
+    --danger: #c53030;
+    --danger-bg: #fff5f5;
+    --danger-border: #fed7d7;
+    --green: #276749;
+    --green-bg: #f0fff4;
+    --green-border: #c6f6d5;
+    --warn: #975a16;
+    --warn-bg: #fffff0;
+  }
+
+  body {
+    font-family: 'Noto Sans JP', 'Inter', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+  }
+
+  .scene {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100vw;
+    height: 100vh;
+    opacity: 0;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    padding: 6vh 8vw;
+  }
+  .scene.active { opacity: 1; pointer-events: auto; }
+
+  /* ===== Common ===== */
+  .scene-label {
+    font-family: 'Inter', sans-serif;
+    font-size: clamp(12px, 0.9vw, 16px);
+    font-weight: 600;
+    letter-spacing: 3px;
+    color: var(--accent);
+    text-transform: uppercase;
+    opacity: 0;
+    transform: translateY(20px);
+    margin-bottom: 2vh;
+  }
+  .scene-heading {
+    font-size: clamp(28px, 3.2vw, 56px);
+    font-weight: 800;
+    line-height: 1.4;
+    letter-spacing: -0.02em;
+    text-align: center;
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  .scene-body {
+    font-size: clamp(16px, 1.4vw, 24px);
+    color: var(--text-sub);
+    line-height: 1.9;
+    text-align: center;
+    max-width: 70vw;
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  .scene-sub {
+    font-size: clamp(14px, 1.1vw, 20px);
+    color: var(--text-muted);
+    line-height: 1.8;
+    text-align: center;
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  /* ===== Title page ===== */
+  .overview-grid {
+    display: flex;
+    gap: clamp(16px, 2vw, 40px);
+    margin-top: 4vh;
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  .overview-item {
+    text-align: center;
+    padding: 3vh 3vw;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-sub);
+    min-width: clamp(160px, 14vw, 260px);
+  }
+  .overview-num {
+    font-family: 'Inter', sans-serif;
+    font-size: clamp(32px, 3.5vw, 64px);
+    font-weight: 800;
+    color: var(--accent);
+    margin-bottom: 0.5vh;
+  }
+  .overview-label {
+    font-size: clamp(13px, 1vw, 18px);
+    color: var(--text-sub);
+    font-weight: 500;
+  }
+
+  /* ===== Challenge page ===== */
+  .challenge-content {
+    width: 100%;
+    max-width: 80vw;
+    display: flex;
+    flex-direction: column;
+    gap: 4vh;
+    align-items: center;
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  .challenge-num {
+    font-family: 'Inter', sans-serif;
+    font-size: clamp(14px, 1.1vw, 20px);
+    font-weight: 700;
+    color: var(--danger);
+    background: var(--danger-bg);
+    border: 1px solid var(--danger-border);
+    padding: 0.8vh 2vw;
+    border-radius: 6px;
+    letter-spacing: 2px;
+  }
+  .challenge-title {
+    font-size: clamp(26px, 2.8vw, 48px);
+    font-weight: 800;
+    text-align: center;
+    line-height: 1.4;
+  }
+  .challenge-desc {
+    font-size: clamp(16px, 1.3vw, 22px);
+    color: var(--text-sub);
+    text-align: center;
+    line-height: 1.9;
+    max-width: 65vw;
+  }
+  .challenge-stat {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-top: 1vh;
+  }
+  .challenge-stat-val {
+    font-family: 'Inter', sans-serif;
+    font-size: clamp(36px, 4vw, 72px);
+    font-weight: 800;
+    color: var(--danger);
+  }
+  .challenge-stat-unit {
+    font-size: clamp(16px, 1.2vw, 22px);
+    color: var(--text-sub);
+    font-weight: 500;
+  }
+
+  /* ===== Flow page ===== */
+  .flow-container {
+    display: flex;
+    align-items: flex-start;
+    width: 100%;
+    margin-top: 4vh;
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  .flow-step {
+    flex: 1;
+    text-align: center;
+    padding: 0 1.5vw;
+  }
+  .flow-num {
+    width: clamp(52px, 5vw, 80px);
+    height: clamp(52px, 5vw, 80px);
+    margin: 0 auto 2vh;
+    border: 2px solid var(--accent);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(20px, 2vw, 32px);
+    font-family: 'Inter', sans-serif;
+    font-weight: 800;
+    color: var(--accent);
+  }
+  .flow-step h3 {
+    font-size: clamp(16px, 1.3vw, 22px);
+    font-weight: 700;
+    margin-bottom: 1vh;
+  }
+  .flow-step p {
+    font-size: clamp(13px, 1vw, 18px);
+    color: var(--text-sub);
+    line-height: 1.7;
+  }
+  .flow-arrow {
+    font-size: clamp(20px, 2vw, 32px);
+    color: var(--border);
+    flex-shrink: 0;
+    width: clamp(30px, 3vw, 50px);
+    text-align: center;
+    padding-top: clamp(20px, 2vw, 30px);
+  }
+
+  /* ===== Mockup page ===== */
+  .mockup-container {
+    width: 100%;
+    max-width: 70vw;
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  .excel-frame {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    background: #fff;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+  }
+  .excel-toolbar {
+    background: var(--bg-sub);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 18px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: clamp(12px, 0.9vw, 16px);
+    color: var(--text-muted);
+    font-family: 'Inter', monospace;
+  }
+  .excel-toolbar-title {
+    font-weight: 600;
+    color: var(--text-sub);
+  }
+  .excel-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: clamp(12px, 0.9vw, 16px);
+  }
+  .excel-table th {
+    background: var(--accent);
+    color: #fff;
+    font-weight: 600;
+    padding: 10px 14px;
+    text-align: left;
+    border: 1px solid var(--accent);
+    white-space: nowrap;
+  }
+  .excel-table td {
+    padding: 8px 14px;
+    border: 1px solid var(--border-light);
+    color: var(--text-sub);
+    white-space: nowrap;
+  }
+  .cell-miss { background: #fff5f5; color: var(--danger); font-weight: 600; }
+  .cell-warn { background: var(--warn-bg); color: var(--warn); font-weight: 600; }
+  .excel-note {
+    padding: 10px 18px;
+    font-size: clamp(12px, 0.9vw, 16px);
+    color: var(--danger);
+    background: var(--danger-bg);
+    border-top: 1px solid var(--danger-border);
+  }
+
+  /* App mockup */
+  .app-frame {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    background: #fff;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+  }
+  .app-toolbar {
+    background: var(--accent);
+    padding: 10px 18px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: #fff;
+    font-size: clamp(13px, 1vw, 18px);
+    font-weight: 600;
+  }
+  .app-body { padding: 16px; background: #f8fafc; }
+  .app-card {
+    background: #fff;
+    border-radius: 6px;
+    border: 1px solid var(--border-light);
+    overflow: hidden;
+    margin-bottom: 10px;
+  }
+  .app-card:last-child { margin-bottom: 0; }
+  .app-card-hd {
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--border-light);
+    font-size: clamp(12px, 0.9vw, 16px);
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .app-card-bd { padding: 12px 14px; }
+
+  .csv-preview {
+    font-family: 'Inter', 'Courier New', monospace;
+    font-size: clamp(11px, 0.8vw, 15px);
+    background: #1e293b;
+    color: #94a3b8;
+    border-radius: 6px;
+    padding: 12px 16px;
+    line-height: 1.8;
+  }
+  .csv-preview .csv-header { color: #60a5fa; font-weight: 600; }
+  .csv-preview .csv-data { color: #cbd5e1; }
+  .csv-preview .csv-highlight { color: #4ade80; font-weight: 600; }
+  .csv-preview .csv-warn { color: #fbbf24; font-weight: 600; }
+
+  .msg-preview {
+    background: #fff;
+    border: 1px solid var(--border-light);
+    border-radius: 6px;
+    padding: 14px 18px;
+    font-size: clamp(12px, 0.9vw, 16px);
+    color: var(--text-sub);
+    line-height: 1.9;
+    white-space: pre-line;
+  }
+  .msg-hl {
+    background: #fefce8;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-weight: 600;
+    color: var(--warn);
+  }
+
+  .check-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: clamp(13px, 1vw, 18px);
+    color: var(--text-sub);
+    padding: 4px 0;
+  }
+  .check-icon { color: var(--green); font-weight: 700; font-size: 1.1em; }
+  .warn-icon { color: #d97706; font-weight: 700; font-size: 1.1em; }
+
+  /* ===== Demo page ===== */
+  .demo-visual {
+    width: 100%;
+    max-width: 70vw;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 3vw;
+    align-items: center;
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  .demo-box {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 4vh 3vw;
+    text-align: center;
+    background: var(--bg-sub);
+  }
+  .demo-box-title {
+    font-size: clamp(16px, 1.3vw, 22px);
+    font-weight: 700;
+    margin-bottom: 2vh;
+    color: var(--accent);
+  }
+  .demo-box-desc {
+    font-size: clamp(14px, 1.1vw, 18px);
+    color: var(--text-sub);
+    line-height: 1.8;
+  }
+  .demo-arrow {
+    font-size: clamp(24px, 2.5vw, 40px);
+    color: var(--border);
+  }
+
+  /* ===== Timeline page ===== */
+  .timeline {
+    width: 100%;
+    max-width: 75vw;
+    display: flex;
+    gap: 0;
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  .timeline-item {
+    flex: 1;
+    padding: 4vh 2.5vw;
+    border: 1px solid var(--border);
+    text-align: center;
+    position: relative;
+  }
+  .timeline-item:first-child {
+    border-radius: 8px 0 0 8px;
+    background: var(--accent);
+    color: #fff;
+  }
+  .timeline-item:first-child .tl-label { color: rgba(255,255,255,0.7); }
+  .timeline-item:first-child .tl-desc { color: rgba(255,255,255,0.8); }
+  .timeline-item:nth-child(2) {
+    background: var(--bg-sub);
+  }
+  .timeline-item:last-child {
+    border-radius: 0 8px 8px 0;
+    background: var(--bg-sub);
+  }
+  .tl-label {
+    font-family: 'Inter', sans-serif;
+    font-size: clamp(12px, 0.9vw, 16px);
+    font-weight: 600;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+    margin-bottom: 1.5vh;
+  }
+  .tl-title {
+    font-size: clamp(20px, 1.8vw, 32px);
+    font-weight: 800;
+    margin-bottom: 2vh;
+    line-height: 1.4;
+  }
+  .tl-desc {
+    font-size: clamp(14px, 1vw, 18px);
+    color: var(--text-sub);
+    line-height: 1.8;
+  }
+  .tl-list {
+    list-style: none;
+    text-align: left;
+    margin-top: 2vh;
+    font-size: clamp(13px, 0.9vw, 16px);
+    color: var(--text-sub);
+    line-height: 2;
+  }
+  .timeline-item:first-child .tl-list { color: rgba(255,255,255,0.85); }
+
+  /* ===== Result page ===== */
+  .result-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3vh;
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  .result-big-num {
+    font-family: 'Inter', sans-serif;
+    font-size: clamp(72px, 10vw, 160px);
+    font-weight: 900;
+    color: var(--accent);
+    line-height: 1;
+  }
+  .result-title {
+    font-size: clamp(24px, 2.4vw, 42px);
+    font-weight: 700;
+    text-align: center;
+  }
+  .result-desc {
+    font-size: clamp(16px, 1.3vw, 22px);
+    color: var(--text-sub);
+    text-align: center;
+    line-height: 1.9;
+    max-width: 60vw;
+  }
+
+  /* ===== CTA ===== */
+  .cta-button {
+    padding: 2.5vh 5vw;
+    background: var(--accent);
+    border-radius: 6px;
+    font-size: clamp(16px, 1.3vw, 22px);
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+    color: white;
+    font-family: 'Noto Sans JP', sans-serif;
+    letter-spacing: 1px;
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  .cta-contact {
+    font-size: clamp(14px, 1vw, 18px);
+    color: var(--text-muted);
+    font-family: 'Inter', sans-serif;
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  /* ===== Navigation ===== */
+  @keyframes sceneIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes sceneOut { from { opacity: 1; } to { opacity: 0; } }
+
+  .progress-bar {
+    position: fixed;
+    bottom: 0; left: 0;
+    height: 3px;
+    background: var(--accent);
+    z-index: 100;
+    transition: width 0.3s ease;
+  }
+  .scene-indicators {
+    position: fixed;
+    right: 2vw;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 0.8vh;
+    z-index: 100;
+  }
+  .scene-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--border);
+    transition: all 0.3s ease;
+    cursor: pointer;
+    border: none;
+    padding: 0;
+  }
+  .scene-dot.active {
+    background: var(--accent);
+    transform: scale(1.4);
+  }
+  .controls {
+    position: fixed;
+    bottom: 2vh;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 0.8vw;
+    z-index: 100;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  body:hover .controls { opacity: 1; }
+  .ctrl-btn {
+    width: clamp(36px, 2.6vw, 48px);
+    height: clamp(36px, 2.6vw, 48px);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--text-sub);
+    font-size: clamp(13px, 1vw, 18px);
+    transition: all 0.2s ease;
+  }
+  .ctrl-btn:hover { background: var(--bg-sub); border-color: var(--accent); color: var(--accent); }
+
+  .page-num {
+    position: fixed;
+    bottom: 2vh;
+    right: 4vw;
+    font-family: 'Inter', sans-serif;
+    font-size: clamp(11px, 0.8vw, 14px);
+    color: var(--text-muted);
+    z-index: 100;
+  }
+</style>
+</head>
+<body>
+
+<div class="progress-bar" id="progressBar"></div>
+<div class="scene-indicators" id="sceneIndicators"></div>
+<div class="controls">
+  <div class="ctrl-btn" onclick="prevScene()">&#9664;</div>
+  <div class="ctrl-btn" id="playPauseBtn" onclick="toggleAutoPlay()">&#9646;&#9646;</div>
+  <div class="ctrl-btn" onclick="nextScene()">&#9654;</div>
+</div>
+<div class="page-num" id="pageNum"></div>
+
+<!-- ===== SCENE 1: OVERVIEW ===== -->
+<div class="scene" id="scene1" style="gap:3vh;">
+  <div class="scene-label" data-anim="fadeInUp" data-delay="200">AI DEVELOPMENT CASE STUDY</div>
+  <div class="scene-heading" data-anim="fadeInUp" data-delay="400">
+    給与計算業務をAIで自動化
+  </div>
+  <div class="scene-body" data-anim="fadeInUp" data-delay="700" style="margin-top:1vh;">
+    社労士事務所では、顧問先から届く勤怠書類を1件ずつ確認し、<br>
+    給与ソフトに手入力する作業に膨大な時間がかかっていました。<br>
+    AIが書類を自動で読み取り、インポート用データを即時生成する仕組みを構築。<br>
+    不足情報の確認文面も自動で作成し、業務全体を効率化しました。
+  </div>
+  <div class="overview-grid" data-anim="fadeInUp" data-delay="1000">
+    <div class="overview-item">
+      <div class="overview-num">90%</div>
+      <div class="overview-label">入力作業を削減</div>
+    </div>
+    <div class="overview-item">
+      <div class="overview-num">0件</div>
+      <div class="overview-label">転記ミス</div>
+    </div>
+    <div class="overview-item">
+      <div class="overview-num">1/3</div>
+      <div class="overview-label">処理時間に短縮</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCENE 2: CHALLENGE 1 ===== -->
+<div class="scene" id="scene2" style="gap:3vh;">
+  <div class="challenge-content" data-anim="fadeInUp" data-delay="300">
+    <div class="challenge-num">CHALLENGE 01</div>
+    <div class="challenge-title">書類からの手入力に<br>膨大な時間がかかる</div>
+    <div class="challenge-desc">
+      顧問先から届くタイムカード・勤怠表・変動届を<br>
+      1件ずつ確認し、給与計算ソフトに手入力。<br>
+      顧問先が増えるほど、月末の作業時間が膨らみ続ける。
+    </div>
+    <div class="challenge-stat">
+      <span class="challenge-stat-val">2-3時間</span>
+      <span class="challenge-stat-unit">/ 顧問先1社あたり</span>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCENE 3: CHALLENGE 2 ===== -->
+<div class="scene" id="scene3" style="gap:3vh;">
+  <div class="challenge-content" data-anim="fadeInUp" data-delay="300">
+    <div class="challenge-num">CHALLENGE 02</div>
+    <div class="challenge-title">転記ミスと確認漏れの<br>リスクが常につきまとう</div>
+    <div class="challenge-desc">
+      手入力による数値の転記ミス、残業時間の計算間違い、手当の適用漏れ。<br>
+      給与は間違いが許されない業務であるがゆえに、<br>
+      ダブルチェックの工数も大きく、精神的な負担も重い。
+    </div>
+    <div class="challenge-stat">
+      <span class="challenge-stat-val">月3-5件</span>
+      <span class="challenge-stat-unit">のヒューマンエラーが発生</span>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCENE 4: CHALLENGE 3 ===== -->
+<div class="scene" id="scene4" style="gap:3vh;">
+  <div class="challenge-content" data-anim="fadeInUp" data-delay="300">
+    <div class="challenge-num">CHALLENGE 03</div>
+    <div class="challenge-title">不足情報の確認に<br>手間がかかる</div>
+    <div class="challenge-desc">
+      届いた書類に情報が足りないことが頻繁にある。<br>
+      そのたびに「誰の」「何が」足りないかを整理し、<br>
+      丁寧なメール文面を考えて送る。この作業だけで相当な時間を取られる。
+    </div>
+    <div class="challenge-stat">
+      <span class="challenge-stat-val">15-30分</span>
+      <span class="challenge-stat-unit">/ 確認メール1通の作成</span>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCENE 5: SOLUTION FLOW ===== -->
+<div class="scene" id="scene5" style="gap:2vh;">
+  <div class="scene-label" data-anim="fadeInUp" data-delay="200">SOLUTION</div>
+  <div class="scene-heading" data-anim="fadeInUp" data-delay="400" style="margin-bottom:2vh;">
+    AIによる自動処理フロー
+  </div>
+  <div class="flow-container" data-anim="fadeInUp" data-delay="700">
+    <div class="flow-step">
+      <div class="flow-num">1</div>
+      <h3>書類アップロード</h3>
+      <p>顧問先から届いた<br>勤怠書類を<br>ドラッグ&ドロップ</p>
+    </div>
+    <div class="flow-arrow">&#8594;</div>
+    <div class="flow-step">
+      <div class="flow-num">2</div>
+      <h3>AI解析・CSV生成</h3>
+      <p>AIが書類を読み取り<br>給与ソフト用CSVを<br>自動生成</p>
+    </div>
+    <div class="flow-arrow">&#8594;</div>
+    <div class="flow-step">
+      <div class="flow-num">3</div>
+      <h3>不足情報の検出</h3>
+      <p>空欄・不整合を自動検出<br>確認メール文面を<br>そのまま使える品質で作成</p>
+    </div>
+    <div class="flow-arrow">&#8594;</div>
+    <div class="flow-step">
+      <div class="flow-num">4</div>
+      <h3>確認・インポート</h3>
+      <p>担当者が内容を確認し<br>CSVを給与ソフトに<br>そのままインポート</p>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCENE 6: BEFORE ===== -->
+<div class="scene" id="scene6" style="gap:3vh;">
+  <div class="scene-label" data-anim="fadeInUp" data-delay="200">BEFORE</div>
+  <div class="scene-heading" data-anim="fadeInUp" data-delay="400" style="font-size:clamp(22px,2.4vw,40px);">
+    従来の作業 &#8212; 顧問先から届く勤怠書類
+  </div>
+  <div class="scene-sub" data-anim="fadeInUp" data-delay="600">
+    このような書類を見ながら、1行ずつ給与ソフトに手入力していた
+  </div>
+  <div class="mockup-container" data-anim="fadeInUp" data-delay="800">
+    <div class="excel-frame">
+      <div class="excel-toolbar">
+        <span class="excel-toolbar-title">A社_勤怠表_2月.xlsx</span>
+        <span style="margin-left:auto;">従業員6名分</span>
+      </div>
+      <table class="excel-table">
+        <thead>
+          <tr><th>社員No</th><th>出勤日数</th><th>有休</th><th>欠勤</th><th>残業(h)</th><th>深夜(h)</th><th>通勤手当</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>001</td><td>20</td><td>1</td><td>0</td><td>12.5</td><td>2.0</td><td>15,000</td></tr>
+          <tr><td>002</td><td>18</td><td>2</td><td class="cell-miss">？</td><td>8.0</td><td>0</td><td>12,000</td></tr>
+          <tr><td>003</td><td class="cell-miss">？</td><td class="cell-miss">？</td><td>0</td><td class="cell-miss">未記入</td><td>0</td><td class="cell-warn">変更？</td></tr>
+          <tr><td>004</td><td>21</td><td>0</td><td>0</td><td>20.5</td><td>5.0</td><td>18,000</td></tr>
+          <tr><td>005</td><td>19</td><td>1</td><td>1</td><td>6.0</td><td>0</td><td class="cell-miss">未記入</td></tr>
+          <tr><td>006</td><td>20</td><td>0</td><td>0</td><td>15.0</td><td>3.5</td><td>15,000</td></tr>
+        </tbody>
+      </table>
+      <div class="excel-note">
+        不備3件：社員003（勤怠未提出）、社員002（欠勤不明）、社員005（通勤手当未記入）
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCENE 7: AFTER - CSV ===== -->
+<div class="scene" id="scene7" style="gap:3vh;">
+  <div class="scene-label" data-anim="fadeInUp" data-delay="200">AFTER</div>
+  <div class="scene-heading" data-anim="fadeInUp" data-delay="400" style="font-size:clamp(22px,2.4vw,40px);">
+    AI処理後 &#8212; 給与ソフト用CSVが自動生成
+  </div>
+  <div class="scene-sub" data-anim="fadeInUp" data-delay="600">
+    書類をアップロードするだけで、インポート用CSVと確認文面が同時に完成
+  </div>
+  <div class="mockup-container" data-anim="fadeInUp" data-delay="800">
+    <div class="app-frame">
+      <div class="app-toolbar">
+        給与計算AIアシスタント
+        <span style="margin-left:auto;font-weight:400;opacity:0.7;font-size:clamp(11px,0.8vw,15px);">A社 2月分 / 処理完了</span>
+      </div>
+      <div class="app-body">
+        <div class="app-card">
+          <div class="app-card-hd">AI解析結果</div>
+          <div class="app-card-bd">
+            <div class="check-row"><span class="check-icon">&#10003;</span> 従業員6名の勤怠データを検出</div>
+            <div class="check-row"><span class="check-icon">&#10003;</span> 出勤日数・残業時間・深夜時間を自動抽出</div>
+            <div class="check-row"><span class="check-icon">&#10003;</span> 通勤手当・各種手当を前月データと照合</div>
+            <div class="check-row"><span class="warn-icon">&#9888;</span> 2名分の情報に不足あり &#8594; 確認文面を生成済み</div>
+          </div>
+        </div>
+        <div class="app-card">
+          <div class="app-card-hd">給与ソフト インポート用CSV（自動生成）</div>
+          <div style="padding:8px 14px">
+            <div class="csv-preview">
+              <div class="csv-header">社員番号,出勤日数,有給休暇,欠勤日数,普通残業,深夜残業,通勤手当</div>
+              <div class="csv-data"><span class="csv-highlight">001</span>,20,1,0,12.5,2.0,15000</div>
+              <div class="csv-data"><span class="csv-highlight">002</span>,18,2,<span class="csv-warn">要確認</span>,8.0,0,12000</div>
+              <div class="csv-data"><span class="csv-highlight">004</span>,21,0,0,20.5,5.0,18000</div>
+              <div class="csv-data"><span class="csv-highlight">006</span>,20,0,0,15.0,3.5,15000</div>
+            </div>
+          </div>
+        </div>
+        <div class="app-card">
+          <div class="app-card-hd" style="color:var(--warn);background:var(--warn-bg);">不足情報 &#8212; 顧問先への確認文面（自動生成）</div>
+          <div style="padding:8px 14px">
+            <div class="msg-preview"><span class="msg-hl">1. 社員003</span>  勤怠データ（出勤日数・有給・残業時間）が確認できません。タイムカードのご提出をお願いいたします。
+
+<span class="msg-hl">2. 社員005</span>  通勤手当の記載がございません。前月（15,000円）から変更はございますでしょうか。</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCENE 8: DEMO ===== -->
+<div class="scene" id="scene8" style="gap:4vh;">
+  <div class="scene-label" data-anim="fadeInUp" data-delay="200">DEVELOPMENT PROCESS</div>
+  <div class="scene-heading" data-anim="fadeInUp" data-delay="400">
+    打ち合わせ中にデモを作成し<br>認識をすり合わせ
+  </div>
+  <div class="scene-body" data-anim="fadeInUp" data-delay="700" style="margin-bottom:2vh;">
+    仕様書だけでは伝わりにくい部分も、<br>
+    打ち合わせの場で簡易デモを作成してお見せすることで、<br>
+    「思っていたものと違う」を未然に防ぎます。
+  </div>
+  <div class="demo-visual" data-anim="fadeInUp" data-delay="1000">
+    <div class="demo-box">
+      <div class="demo-box-title">打ち合わせ</div>
+      <div class="demo-box-desc">
+        業務フローや<br>
+        現場の課題をヒアリング
+      </div>
+    </div>
+    <div class="demo-arrow">&#8594;</div>
+    <div class="demo-box" style="background:var(--accent);color:#fff;">
+      <div class="demo-box-title" style="color:#fff;">その場でデモ作成</div>
+      <div class="demo-box-desc" style="color:rgba(255,255,255,0.85);">
+        実際の書類を使って<br>
+        簡易デモを構築し<br>
+        画面を見ながらすり合わせ
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCENE 9: TIMELINE ===== -->
+<div class="scene" id="scene9" style="gap:4vh;">
+  <div class="scene-label" data-anim="fadeInUp" data-delay="200">TIMELINE</div>
+  <div class="scene-heading" data-anim="fadeInUp" data-delay="400">
+    開発スケジュール
+  </div>
+  <div class="timeline" data-anim="fadeInUp" data-delay="700">
+    <div class="timeline-item">
+      <div class="tl-label">MONTH 1</div>
+      <div class="tl-title">基本機能の開発</div>
+      <ul class="tl-list">
+        <li>&#9632; 書類のAI読み取り機能</li>
+        <li>&#9632; CSV自動生成機能</li>
+        <li>&#9632; 不足情報の検出と文面生成</li>
+        <li>&#9632; 基本的な画面の構築</li>
+      </ul>
+    </div>
+    <div class="timeline-item">
+      <div class="tl-label">MONTH 2</div>
+      <div class="tl-title">現場に合わせた<br>カスタマイズ</div>
+      <ul class="tl-list">
+        <li>&#9632; 顧問先ごとの書類形式に対応</li>
+        <li>&#9632; 確認文面のトーン調整</li>
+        <li>&#9632; 業務フローに合わせたUI改善</li>
+        <li>&#9632; フィードバック反映</li>
+      </ul>
+    </div>
+    <div class="timeline-item">
+      <div class="tl-label">MONTH 3</div>
+      <div class="tl-title">精度向上と<br>運用安定化</div>
+      <ul class="tl-list">
+        <li>&#9632; 読み取り精度のチューニング</li>
+        <li>&#9632; エッジケースへの対応</li>
+        <li>&#9632; 運用マニュアル整備</li>
+        <li>&#9632; 本格運用開始</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCENE 10: RESULT 1 ===== -->
+<div class="scene" id="scene10" style="gap:2vh;">
+  <div class="scene-label" data-anim="fadeInUp" data-delay="200">RESULT 01</div>
+  <div class="result-content" data-anim="fadeInUp" data-delay="400">
+    <div class="result-big-num" id="counter1">0%</div>
+    <div class="result-title">入力作業を削減</div>
+    <div class="result-desc">
+      勤怠書類からの手入力作業がほぼ不要に。<br>
+      AIが書類を読み取り、給与ソフト用のCSVを自動生成。<br>
+      担当者は確認とインポートだけに集中できる。
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCENE 11: RESULT 2 ===== -->
+<div class="scene" id="scene11" style="gap:2vh;">
+  <div class="scene-label" data-anim="fadeInUp" data-delay="200">RESULT 02</div>
+  <div class="result-content" data-anim="fadeInUp" data-delay="400">
+    <div class="result-big-num" id="counter2">0件</div>
+    <div class="result-title">転記ミスをゼロに</div>
+    <div class="result-desc">
+      手入力をなくすことで、人為的なミスを根本から排除。<br>
+      数値の打ち間違い、残業時間の計算ミス、手当の適用漏れ。<br>
+      給与業務における最大のリスクを解消。
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCENE 12: RESULT 3 ===== -->
+<div class="scene" id="scene12" style="gap:2vh;">
+  <div class="scene-label" data-anim="fadeInUp" data-delay="200">RESULT 03</div>
+  <div class="result-content" data-anim="fadeInUp" data-delay="400">
+    <div class="result-big-num" id="counter3">0分</div>
+    <div class="result-title">確認メール作成の時間をゼロに</div>
+    <div class="result-desc">
+      不足情報の確認メールをゼロから考える必要がなくなった。<br>
+      AIが「誰の」「何が」「なぜ必要か」を整理し、<br>
+      そのまま送れる品質のビジネス文面を自動生成。
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCENE 13: CTA ===== -->
+<div class="scene" id="scene13" style="gap:4vh; background:var(--bg-sub);">
+  <div class="scene-heading" data-anim="fadeInUp" data-delay="400">
+    給与計算の負担を<br>減らしませんか？
+  </div>
+  <div class="scene-body" data-anim="fadeInUp" data-delay="700">
+    書類を受け取ったらAIに任せる。<br>
+    確認が必要なことだけに集中できる環境を。
+  </div>
+  <button class="cta-button" data-anim="fadeInUp" data-delay="1000">
+    お問い合わせはこちら
+  </button>
+  <div class="cta-contact" data-anim="fadeInUp" data-delay="1200">
+    contact@because-and.co.jp
+  </div>
+</div>
+
+<script>
+  const totalScenes = 13;
+  let currentScene = 0;
+  let autoPlayTimer = null;
+  let isAutoPlaying = true;
+  const sceneDurations = [6000, 6000, 6000, 6000, 7000, 8000, 8000, 7000, 8000, 6000, 6000, 6000, 6000];
+
+  const indicatorContainer = document.getElementById('sceneIndicators');
+  for (let i = 0; i < totalScenes; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'scene-dot' + (i === 0 ? ' active' : '');
+    dot.onclick = () => goToScene(i);
+    indicatorContainer.appendChild(dot);
+  }
+
+  function updatePageNum() {
+    document.getElementById('pageNum').textContent = (currentScene + 1) + ' / ' + totalScenes;
+  }
+
+  function animateElements(sceneEl) {
+    const elements = sceneEl.querySelectorAll('[data-anim]');
+    elements.forEach(el => {
+      const delay = parseInt(el.dataset.delay) || 0;
+      el.style.opacity = '0';
+      setTimeout(() => {
+        el.style.transition = 'all 0.7s cubic-bezier(0.16, 1, 0.3, 1)';
+        el.style.opacity = '1';
+        el.style.transform = 'translate(0, 0) scale(1)';
+      }, delay);
+    });
+  }
+
+  function resetElements(sceneEl) {
+    const elements = sceneEl.querySelectorAll('[data-anim]');
+    elements.forEach(el => {
+      el.style.transition = 'none';
+      el.style.opacity = '0';
+      const anim = el.dataset.anim;
+      if (anim === 'fadeInUp') el.style.transform = 'translateY(20px)';
+      else if (anim === 'fadeInLeft') el.style.transform = 'translateX(-30px)';
+      else if (anim === 'fadeInScale') el.style.transform = 'scale(0.95)';
+      else el.style.transform = 'translateY(20px)';
+    });
+  }
+
+  function startCounterAnimation(sceneIdx) {
+    if (sceneIdx === 9) animateCounter('counter1', 0, 90, 2000, '%');
+    if (sceneIdx === 10) animateCounter('counter2', 5, 0, 2000, '件');
+    if (sceneIdx === 11) animateCounter('counter3', 30, 0, 1800, '分');
+  }
+
+  function animateCounter(id, start, end, duration, suffix) {
+    const el = document.getElementById(id);
+    const startTime = performance.now();
+    function update(currentTime) {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      el.textContent = Math.round(start + (end - start) * eased) + suffix;
+      if (progress < 1) requestAnimationFrame(update);
+    }
+    setTimeout(() => requestAnimationFrame(update), 500);
+  }
+
+  function goToScene(index) {
+    if (index < 0 || index >= totalScenes) return;
+    const currentEl = document.getElementById('scene' + (currentScene + 1));
+    if (currentEl) {
+      currentEl.style.animation = 'sceneOut 0.4s ease forwards';
+      setTimeout(() => {
+        currentEl.classList.remove('active');
+        currentEl.style.animation = '';
+        resetElements(currentEl);
+      }, 400);
+    }
+    currentScene = index;
+    setTimeout(() => {
+      const newEl = document.getElementById('scene' + (currentScene + 1));
+      newEl.classList.add('active');
+      newEl.style.animation = 'sceneIn 0.4s ease forwards';
+      animateElements(newEl);
+      startCounterAnimation(currentScene);
+      updatePageNum();
+      document.querySelectorAll('.scene-dot').forEach((d, i) => {
+        d.classList.toggle('active', i === currentScene);
+      });
+      document.getElementById('progressBar').style.width =
+        ((currentScene + 1) / totalScenes * 100) + '%';
+    }, 400);
+    if (isAutoPlaying) {
+      clearTimeout(autoPlayTimer);
+      autoPlayTimer = setTimeout(() => nextScene(), sceneDurations[currentScene]);
+    }
+  }
+
+  function nextScene() { goToScene(currentScene < totalScenes - 1 ? currentScene + 1 : 0); }
+  function prevScene() { if (currentScene > 0) goToScene(currentScene - 1); }
+  function toggleAutoPlay() {
+    isAutoPlaying = !isAutoPlaying;
+    document.getElementById('playPauseBtn').innerHTML = isAutoPlaying ? '&#9646;&#9646;' : '&#9654;';
+    if (isAutoPlaying) autoPlayTimer = setTimeout(() => nextScene(), sceneDurations[currentScene]);
+    else clearTimeout(autoPlayTimer);
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); nextScene(); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); prevScene(); }
+    if (e.key === 'p') toggleAutoPlay();
+  });
+
+  let wheelCooldown = false;
+  document.addEventListener('wheel', (e) => {
+    if (wheelCooldown) return;
+    wheelCooldown = true;
+    setTimeout(() => { wheelCooldown = false; }, 1200);
+    if (e.deltaY > 0) nextScene();
+    else prevScene();
+  }, { passive: true });
+
+  window.addEventListener('load', () => {
+    const scene1 = document.getElementById('scene1');
+    scene1.classList.add('active');
+    animateElements(scene1);
+    updatePageNum();
+    document.getElementById('progressBar').style.width = (1 / totalScenes * 100) + '%';
+    autoPlayTimer = setTimeout(() => nextScene(), sceneDurations[0]);
+  });
+</script>
+
+</body>
+</html>
