@@ -1,0 +1,1646 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI営業自動化サービス - サービス紹介</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700;900&family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --primary: #1e40af;
+    --primary-light: #dbeafe;
+    --primary-dark: #1e3a5f;
+    --text-dark: #1e293b;
+    --text-medium: #475569;
+    --text-light: #94a3b8;
+    --bg-white: #ffffff;
+    --bg-light: #f8fafc;
+    --bg-subtle: #f1f5f9;
+    --border: #e2e8f0;
+    --accent-green: #059669;
+    --accent-green-light: #d1fae5;
+    --accent-red: #dc2626;
+    --accent-red-light: #fee2e2;
+    --accent-orange: #d97706;
+    --accent-orange-light: #fef3c7;
+  }
+
+  body {
+    font-family: 'Noto Sans JP', 'Inter', sans-serif;
+    background: var(--bg-white);
+    color: var(--text-dark);
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+  }
+
+  /* ===== Slide Base ===== */
+  .slide {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100vw;
+    height: 100vh;
+    opacity: 0;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    padding: 6vh 8vw;
+    background: var(--bg-white);
+  }
+  .slide.active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* ===== Common ===== */
+  .slide-number {
+    position: absolute;
+    top: 3vh;
+    left: 4vw;
+    font-size: clamp(12px, 1vw, 16px);
+    color: var(--text-light);
+    font-weight: 500;
+  }
+
+  .section-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0.8vh 1.8vw;
+    border-radius: 6px;
+    font-size: clamp(14px, 1.1vw, 20px);
+    font-weight: 700;
+    letter-spacing: 1px;
+    margin-bottom: 2.5vh;
+    opacity: 0;
+    transform: translateY(15px);
+  }
+  .section-label.blue { background: var(--primary-light); color: var(--primary); }
+  .section-label.green { background: var(--accent-green-light); color: var(--accent-green); }
+  .section-label.red { background: var(--accent-red-light); color: var(--accent-red); }
+  .section-label.orange { background: var(--accent-orange-light); color: var(--accent-orange); }
+
+  .slide-title {
+    font-size: clamp(28px, 3vw, 54px);
+    font-weight: 800;
+    color: var(--text-dark);
+    margin-bottom: 2.5vh;
+    text-align: center;
+    line-height: 1.4;
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  .slide-subtitle {
+    font-size: clamp(16px, 1.4vw, 26px);
+    font-weight: 400;
+    color: var(--text-medium);
+    text-align: center;
+    line-height: 1.7;
+    margin-bottom: 3vh;
+    opacity: 0;
+    transform: translateY(15px);
+  }
+
+  /* ===== Slide 1: Cover ===== */
+  .slide-cover { background: var(--bg-white); gap: 2.5vh; }
+  .cover-line {
+    width: 60px; height: 3px;
+    background: var(--primary);
+    opacity: 0;
+  }
+  .cover-badge {
+    font-size: clamp(13px, 1vw, 18px);
+    color: var(--primary);
+    font-weight: 600;
+    letter-spacing: 3px;
+    padding: 1vh 2vw;
+    border: 2px solid var(--primary);
+    border-radius: 4px;
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  .cover-title {
+    font-size: clamp(36px, 4.5vw, 80px);
+    font-weight: 900;
+    color: var(--text-dark);
+    text-align: center;
+    line-height: 1.3;
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  .cover-title .accent { color: var(--primary); }
+  .cover-sub {
+    font-size: clamp(16px, 1.5vw, 28px);
+    color: var(--text-medium);
+    text-align: center;
+    line-height: 1.6;
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  /* ===== Slide 2: Overview ===== */
+  .overview-container {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 2.5vw;
+    width: 100%;
+    align-items: stretch;
+    margin-top: 1vh;
+  }
+  .overview-box {
+    background: var(--bg-light);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 3.5vh 2.5vw;
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  .overview-box h3 {
+    font-size: clamp(18px, 1.6vw, 30px);
+    font-weight: 800;
+    margin-bottom: 2.5vh;
+    display: flex;
+    align-items: center;
+    gap: 0.8vw;
+  }
+  .overview-box.challenge h3 { color: var(--accent-red); }
+  .overview-box.solution h3 { color: var(--accent-green); }
+  .overview-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.8vw;
+    margin-bottom: 2vh;
+    font-size: clamp(15px, 1.2vw, 22px);
+    line-height: 1.6;
+    color: var(--text-medium);
+  }
+  .overview-item .icon {
+    font-size: clamp(18px, 1.3vw, 24px);
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .overview-arrow {
+    font-size: clamp(32px, 3vw, 56px);
+    color: var(--primary);
+    opacity: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1vh;
+  }
+  .overview-arrow .label {
+    font-size: clamp(13px, 1vw, 18px);
+    font-weight: 800;
+    color: var(--primary);
+    letter-spacing: 2px;
+  }
+
+  /* ===== Challenge Pages ===== */
+  .challenge-content {
+    display: flex;
+    align-items: center;
+    gap: 4vw;
+    width: 100%;
+  }
+  .challenge-text {
+    flex: 1.2;
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+  .challenge-text h2 {
+    font-size: clamp(24px, 2.4vw, 44px);
+    font-weight: 800;
+    margin-bottom: 2.5vh;
+    line-height: 1.4;
+  }
+  .challenge-text p {
+    font-size: clamp(16px, 1.3vw, 24px);
+    color: var(--text-medium);
+    line-height: 1.8;
+    margin-bottom: 1.5vh;
+  }
+  .challenge-stat {
+    background: var(--accent-red-light);
+    border-left: 4px solid var(--accent-red);
+    padding: 2.5vh 2vw;
+    border-radius: 0 12px 12px 0;
+    margin-top: 2vh;
+  }
+  .challenge-stat .number {
+    font-size: clamp(32px, 3vw, 56px);
+    font-weight: 900;
+    color: var(--accent-red);
+  }
+  .challenge-stat .desc {
+    font-size: clamp(14px, 1.1vw, 20px);
+    color: var(--text-medium);
+    margin-top: 0.5vh;
+  }
+  .challenge-visual {
+    flex: 0.8;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    opacity: 0;
+    transform: translateX(30px);
+  }
+
+  /* ===== Mockups ===== */
+  .mockup-old-site {
+    background: #fafafa;
+    border: 2px solid #d1d5db;
+    border-radius: 12px;
+    overflow: hidden;
+    width: 100%;
+    position: relative;
+  }
+  .mockup-header {
+    background: #e5e7eb;
+    padding: 1vh 1.2vw;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .mockup-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+  }
+  .mockup-dot.r { background: #ef4444; }
+  .mockup-dot.y { background: #f59e0b; }
+  .mockup-dot.g { background: #10b981; }
+  .mockup-url {
+    background: white;
+    border-radius: 4px;
+    padding: 3px 10px;
+    font-size: clamp(10px, 0.7vw, 13px);
+    color: #9ca3af;
+    margin-left: 8px;
+    flex: 1;
+    font-family: 'Inter', monospace;
+  }
+  .mockup-body {
+    padding: 2vh 1.5vw;
+    display: flex;
+    flex-direction: column;
+    gap: 1vh;
+    min-height: 20vh;
+  }
+  .bar {
+    height: 12px;
+    background: #e5e7eb;
+    border-radius: 6px;
+  }
+  .bar.short { width: 50%; }
+  .bar.medium { width: 75%; }
+  .bar.long { width: 100%; }
+  .bar.thick { height: 16px; }
+  .bar.accent { background: var(--primary-light); }
+  .outdated-stamp {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%) rotate(-15deg);
+    font-size: clamp(22px, 2.5vw, 44px);
+    font-weight: 900;
+    color: rgba(220, 38, 38, 0.15);
+    letter-spacing: 6px;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+
+  .mockup-modern-site {
+    background: #ffffff;
+    border: 2px solid var(--primary-light);
+    border-radius: 12px;
+    overflow: hidden;
+    width: 100%;
+    box-shadow: 0 4px 24px rgba(30, 64, 175, 0.08);
+  }
+  .mockup-modern-site .mockup-header {
+    background: var(--primary);
+  }
+  .mockup-modern-site .mockup-url {
+    background: rgba(255,255,255,0.15);
+    color: rgba(255,255,255,0.8);
+  }
+  .mockup-modern-site .hero-area {
+    background: linear-gradient(135deg, var(--primary-light), #ede9fe);
+    border-radius: 8px;
+    padding: 2.5vh 1.5vw;
+    margin-bottom: 1vh;
+  }
+  .mockup-modern-site .hero-area .bar {
+    background: rgba(30, 64, 175, 0.15);
+  }
+  .mockup-modern-site .cards-row {
+    display: flex;
+    gap: 0.8vw;
+    margin-top: 0.5vh;
+  }
+  .mockup-modern-site .mini-card {
+    flex: 1;
+    background: var(--bg-light);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.2vh 0.6vw;
+  }
+  .mockup-modern-site .mini-card .bar {
+    height: 8px;
+    margin-bottom: 0.5vh;
+  }
+
+  /* ===== Flow Page ===== */
+  .flow-vertical {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    width: 100%;
+    max-width: 750px;
+  }
+  .flow-item {
+    display: flex;
+    align-items: center;
+    gap: 1.8vw;
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  .flow-number {
+    width: clamp(48px, 3.5vw, 64px);
+    height: clamp(48px, 3.5vw, 64px);
+    background: var(--primary);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(18px, 1.4vw, 24px);
+    font-weight: 800;
+    flex-shrink: 0;
+  }
+  .flow-item-text h3 {
+    font-size: clamp(18px, 1.5vw, 28px);
+    font-weight: 700;
+    margin-bottom: 0.3vh;
+  }
+  .flow-item-text p {
+    font-size: clamp(14px, 1.2vw, 22px);
+    color: var(--text-medium);
+  }
+  .flow-connector {
+    width: 2px;
+    height: 3vh;
+    background: var(--border);
+    margin-left: clamp(23px, 1.7vw, 31px);
+  }
+
+  /* ===== Demo Meeting Page ===== */
+  .demo-features {
+    display: flex;
+    flex-direction: column;
+    gap: 2.5vh;
+    width: 100%;
+    max-width: 850px;
+    margin-top: 1vh;
+  }
+  .demo-feature {
+    display: flex;
+    align-items: flex-start;
+    gap: 1.5vw;
+    background: var(--bg-light);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 3vh 2.5vw;
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  .demo-feature-icon {
+    width: clamp(50px, 3.5vw, 64px);
+    height: clamp(50px, 3.5vw, 64px);
+    background: var(--primary-light);
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(22px, 1.8vw, 32px);
+    flex-shrink: 0;
+  }
+  .demo-feature-text h3 {
+    font-size: clamp(17px, 1.4vw, 26px);
+    font-weight: 700;
+    margin-bottom: 0.5vh;
+  }
+  .demo-feature-text p {
+    font-size: clamp(15px, 1.2vw, 22px);
+    color: var(--text-medium);
+    line-height: 1.7;
+  }
+
+  /* ===== Step Detail Page ===== */
+  .step-content {
+    display: flex;
+    align-items: center;
+    gap: 4vw;
+    width: 100%;
+  }
+  .step-text {
+    flex: 1.2;
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+  .step-text h2 {
+    font-size: clamp(24px, 2.4vw, 44px);
+    font-weight: 800;
+    margin-bottom: 2vh;
+    line-height: 1.4;
+  }
+  .step-text p {
+    font-size: clamp(15px, 1.3vw, 24px);
+    color: var(--text-medium);
+    line-height: 1.8;
+    margin-bottom: 1.5vh;
+  }
+  .step-text ul {
+    list-style: none;
+    margin-top: 1.5vh;
+  }
+  .step-text ul li {
+    font-size: clamp(15px, 1.2vw, 22px);
+    color: var(--text-medium);
+    line-height: 1.8;
+    padding-left: 1.5vw;
+    position: relative;
+    margin-bottom: 0.8vh;
+  }
+  .step-text ul li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0.7em;
+    width: 8px; height: 8px;
+    background: var(--primary);
+    border-radius: 50%;
+  }
+  .step-visual {
+    flex: 0.8;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    opacity: 0;
+    transform: translateX(30px);
+  }
+
+  /* ===== Email Mockup ===== */
+  .email-mockup {
+    background: var(--bg-light);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 3vh 2.5vw;
+    width: 100%;
+    max-width: 580px;
+  }
+  .email-mockup-header {
+    display: flex;
+    align-items: center;
+    gap: 1vw;
+    padding-bottom: 2vh;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 2vh;
+  }
+  .email-mockup-icon {
+    width: clamp(44px, 3vw, 56px);
+    height: clamp(44px, 3vw, 56px);
+    background: var(--primary-light);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(20px, 1.4vw, 26px);
+  }
+  .email-mockup-header h3 {
+    font-size: clamp(17px, 1.4vw, 24px);
+    font-weight: 700;
+  }
+  .email-field {
+    display: flex;
+    gap: 0.8vw;
+    margin-bottom: 1.2vh;
+    font-size: clamp(14px, 1.1vw, 20px);
+    align-items: center;
+  }
+  .email-field .label {
+    color: var(--text-light);
+    font-weight: 600;
+    width: 4vw;
+    flex-shrink: 0;
+  }
+  .email-field .value {
+    color: var(--text-dark);
+    background: white;
+    padding: 0.8vh 1vw;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    flex: 1;
+  }
+  .email-body-text {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 2vh 1.5vw;
+    margin-top: 1.5vh;
+    font-size: clamp(13px, 1vw, 18px);
+    color: var(--text-medium);
+    line-height: 1.9;
+  }
+  .highlight-box {
+    display: inline-block;
+    background: var(--primary-light);
+    border: 1px solid rgba(30, 64, 175, 0.2);
+    padding: 2px 10px;
+    border-radius: 6px;
+    color: var(--primary);
+    font-size: 0.95em;
+  }
+
+  /* ===== Form Mockup ===== */
+  .form-mockup {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    width: 100%;
+    max-width: 520px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+    position: relative;
+  }
+  .form-mockup-header {
+    background: var(--primary);
+    color: white;
+    padding: 1.5vh 2vw;
+    font-size: clamp(14px, 1.1vw, 20px);
+    font-weight: 700;
+  }
+  .form-mockup-body {
+    padding: 2.5vh 2vw;
+  }
+  .form-field {
+    margin-bottom: 1.5vh;
+  }
+  .form-field label {
+    display: block;
+    font-size: clamp(13px, 0.9vw, 16px);
+    font-weight: 600;
+    color: var(--text-medium);
+    margin-bottom: 0.5vh;
+  }
+  .form-field .input-mock {
+    width: 100%;
+    padding: 1vh 1vw;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: clamp(13px, 1vw, 18px);
+    color: var(--text-dark);
+    background: var(--bg-light);
+    min-height: 3vh;
+    font-family: inherit;
+  }
+  .form-submit-btn {
+    width: 100%;
+    padding: 1.2vh;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: clamp(14px, 1.1vw, 20px);
+    font-weight: 700;
+    margin-top: 1vh;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.3s;
+  }
+  .auto-badge {
+    position: absolute;
+    top: -10px; right: -10px;
+    background: var(--accent-green);
+    color: white;
+    padding: 6px 16px;
+    border-radius: 100px;
+    font-size: clamp(12px, 0.85vw, 15px);
+    font-weight: 700;
+    display: none;
+    z-index: 10;
+  }
+
+  /* ===== Result Single Page ===== */
+  .result-single {
+    text-align: center;
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  .result-single-icon {
+    font-size: clamp(52px, 5vw, 88px);
+    margin-bottom: 2vh;
+  }
+  .result-single-number {
+    font-size: clamp(64px, 8vw, 140px);
+    font-weight: 900;
+    color: var(--primary);
+    line-height: 1;
+    margin-bottom: 1.5vh;
+  }
+  .result-single-label {
+    font-size: clamp(22px, 2vw, 38px);
+    font-weight: 700;
+    color: var(--text-dark);
+    margin-bottom: 2vh;
+  }
+  .result-single-desc {
+    font-size: clamp(16px, 1.4vw, 26px);
+    color: var(--text-medium);
+    line-height: 1.7;
+    max-width: 650px;
+    margin: 0 auto;
+  }
+
+  /* ===== Schedule ===== */
+  .schedule-container {
+    display: flex;
+    gap: 2.5vw;
+    width: 100%;
+    margin-top: 1vh;
+  }
+  .schedule-item {
+    flex: 1;
+    background: var(--bg-light);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 3.5vh 2vw;
+    opacity: 0;
+    transform: translateY(30px);
+    position: relative;
+    overflow: hidden;
+  }
+  .schedule-item::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 4px;
+  }
+  .schedule-item:nth-child(1)::before { background: var(--primary); }
+  .schedule-item:nth-child(2)::before { background: var(--accent-green); }
+  .schedule-item:nth-child(3)::before { background: var(--accent-orange); }
+  .schedule-month {
+    font-size: clamp(14px, 1.1vw, 20px);
+    font-weight: 700;
+    margin-bottom: 1vh;
+  }
+  .schedule-item:nth-child(1) .schedule-month { color: var(--primary); }
+  .schedule-item:nth-child(2) .schedule-month { color: var(--accent-green); }
+  .schedule-item:nth-child(3) .schedule-month { color: var(--accent-orange); }
+  .schedule-item h3 {
+    font-size: clamp(18px, 1.5vw, 28px);
+    font-weight: 800;
+    margin-bottom: 2vh;
+    line-height: 1.4;
+  }
+  .schedule-item ul {
+    list-style: none;
+  }
+  .schedule-item ul li {
+    font-size: clamp(14px, 1.1vw, 20px);
+    color: var(--text-medium);
+    line-height: 1.9;
+    padding-left: 1.5vw;
+    position: relative;
+  }
+  .schedule-item ul li::before {
+    content: '\2713';
+    position: absolute;
+    left: 0;
+    color: var(--accent-green);
+    font-weight: 700;
+  }
+
+  /* ===== CTA ===== */
+  .slide-cta {
+    background: var(--bg-light);
+    gap: 2.5vh;
+  }
+  .cta-icon-big {
+    font-size: clamp(52px, 5vw, 90px);
+    opacity: 0;
+    transform: scale(0.5);
+    margin-bottom: 1vh;
+  }
+  .cta-title-big {
+    font-size: clamp(30px, 3.5vw, 64px);
+    font-weight: 900;
+    color: var(--text-dark);
+    text-align: center;
+    line-height: 1.3;
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  .cta-title-big .accent { color: var(--primary); }
+  .cta-sub-big {
+    font-size: clamp(16px, 1.4vw, 26px);
+    color: var(--text-medium);
+    text-align: center;
+    opacity: 0;
+    transform: translateY(15px);
+  }
+  .cta-button-big {
+    padding: 2.2vh 4vw;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: clamp(16px, 1.3vw, 24px);
+    font-weight: 700;
+    cursor: pointer;
+    opacity: 0;
+    transform: translateY(15px);
+    transition: background 0.3s;
+    font-family: inherit;
+  }
+  .cta-button-big:hover { background: #1e3a8a; }
+
+  /* ===== Info Box ===== */
+  .info-box {
+    background: var(--primary-light);
+    border-left: 4px solid var(--primary);
+    padding: 2vh 2vw;
+    border-radius: 0 12px 12px 0;
+    margin-top: 2vh;
+  }
+  .info-box p {
+    font-size: clamp(14px, 1.2vw, 22px);
+    color: var(--text-dark);
+    line-height: 1.7;
+  }
+
+  /* ===== Animations ===== */
+  @keyframes slideIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes slideOut { from { opacity: 1; } to { opacity: 0; } }
+
+  /* ===== Progress Bar ===== */
+  .progress-bar {
+    position: fixed;
+    bottom: 0; left: 0;
+    height: 3px;
+    background: var(--primary);
+    z-index: 100;
+    transition: width 0.3s ease;
+  }
+
+  /* ===== Indicators ===== */
+  .slide-indicators {
+    position: fixed;
+    right: 1.5vw;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 0.6vh;
+    z-index: 100;
+  }
+  .slide-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--border);
+    transition: all 0.3s ease;
+    cursor: pointer;
+  }
+  .slide-dot.active {
+    background: var(--primary);
+    transform: scale(1.4);
+  }
+
+  /* ===== Controls ===== */
+  .controls {
+    position: fixed;
+    bottom: 2vh;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 0.8vw;
+    z-index: 100;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  body:hover .controls { opacity: 1; }
+  .ctrl-btn {
+    width: clamp(36px, 2.4vw, 46px);
+    height: clamp(36px, 2.4vw, 46px);
+    background: var(--bg-light);
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--text-dark);
+    font-size: clamp(12px, 0.9vw, 16px);
+    transition: all 0.2s ease;
+  }
+  .ctrl-btn:hover {
+    background: var(--primary-light);
+    border-color: var(--primary);
+  }
+
+  /* ===== Iframe Container ===== */
+  .iframe-container {
+    width: 100%;
+    height: 0;
+    position: relative;
+    overflow: hidden;
+    border-radius: 0 0 12px 12px;
+  }
+  .iframe-container iframe {
+    position: absolute;
+    top: 0; left: 0;
+    border: none;
+    transform-origin: top left;
+  }
+
+  /* ===== Browser Mockup ===== */
+  .browser-mock {
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.1);
+    border: 1px solid var(--border);
+    width: 100%;
+  }
+  .browser-bar {
+    background: #f1f5f9;
+    padding: 8px 14px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .browser-bar .dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+  }
+  .browser-bar .dot.r { background: #ef4444; }
+  .browser-bar .dot.y { background: #f59e0b; }
+  .browser-bar .dot.g { background: #10b981; }
+  .browser-bar .url {
+    background: white;
+    border-radius: 4px;
+    padding: 4px 12px;
+    font-size: clamp(10px, 0.7vw, 13px);
+    color: var(--text-light);
+    margin-left: 8px;
+    flex: 1;
+    font-family: 'Inter', monospace;
+  }
+  .browser-mock.outdated-mark {
+    position: relative;
+  }
+  .browser-mock.outdated-mark::after {
+    content: 'OUTDATED';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%) rotate(-15deg);
+    font-size: clamp(28px, 3vw, 56px);
+    font-weight: 900;
+    color: rgba(220, 38, 38, 0.15);
+    letter-spacing: 8px;
+    pointer-events: none;
+    z-index: 5;
+  }
+  .browser-mock.modern {
+    border-color: var(--primary-light);
+    box-shadow: 0 4px 24px rgba(30, 64, 175, 0.1);
+  }
+
+  /* ===== Page Counter ===== */
+  .page-counter {
+    position: fixed;
+    bottom: 2vh;
+    right: 4vw;
+    font-size: clamp(12px, 0.9vw, 15px);
+    color: var(--text-light);
+    font-weight: 500;
+    z-index: 100;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  body:hover .page-counter { opacity: 1; }
+</style>
+</head>
+<body>
+
+<div class="progress-bar" id="progressBar"></div>
+<div class="slide-indicators" id="slideIndicators"></div>
+<div class="controls">
+  <div class="ctrl-btn" onclick="prevSlide()">&#9664;</div>
+  <div class="ctrl-btn" id="playPauseBtn" onclick="toggleAutoPlay()">&#9646;&#9646;</div>
+  <div class="ctrl-btn" onclick="nextSlide()">&#9654;</div>
+</div>
+<div class="page-counter" id="pageCounter"></div>
+
+<!-- ===== SLIDE 1: COVER ===== -->
+<div class="slide slide-cover" id="slide1">
+  <div class="cover-badge" data-anim="fadeInUp" data-delay="300">AI POWERED SERVICE</div>
+  <div class="cover-line" data-anim="fadeIn" data-delay="500"></div>
+  <div class="cover-title" data-anim="fadeInUp" data-delay="600">
+    Web制作会社のための<br>
+    <span class="accent">AI自動営業システム</span>
+  </div>
+  <div class="cover-sub" data-anim="fadeInUp" data-delay="900">
+    古いホームページを自動で発見し、AIがモダンなデザインを生成。<br>
+    提案から送信まで、営業活動を完全に自動化します。
+  </div>
+</div>
+
+<!-- ===== SLIDE 2: OVERVIEW ===== -->
+<div class="slide" id="slide2">
+  <div class="slide-number">01</div>
+  <div class="slide-title" data-anim="fadeInUp" data-delay="200">サービス全体像</div>
+  <div class="overview-container">
+    <div class="overview-box challenge" data-anim="fadeInUp" data-delay="400">
+      <h3>&#10060; 企業の課題</h3>
+      <div class="overview-item">
+        <span class="icon">&#9888;&#65039;</span>
+        <span>古いホームページが大量に放置されている</span>
+      </div>
+      <div class="overview-item">
+        <span class="icon">&#128104;&#8205;&#128187;</span>
+        <span>営業リソースが圧倒的に不足している</span>
+      </div>
+      <div class="overview-item">
+        <span class="icon">&#128233;</span>
+        <span>テンプレート営業では反応率が低い</span>
+      </div>
+    </div>
+    <div class="overview-arrow" data-anim="fadeIn" data-delay="700">
+      <div class="label">AI</div>
+      <span>&#10132;</span>
+      <div class="label">解決</div>
+    </div>
+    <div class="overview-box solution" data-anim="fadeInUp" data-delay="600">
+      <h3>&#10004; 解決策</h3>
+      <div class="overview-item">
+        <span class="icon">&#128269;</span>
+        <span>AIが古いサイトを自動で発見・リスト化</span>
+      </div>
+      <div class="overview-item">
+        <span class="icon">&#127912;</span>
+        <span>その企業専用のモダンデザインを自動生成</span>
+      </div>
+      <div class="overview-item">
+        <span class="icon">&#128640;</span>
+        <span>提案を問い合わせフォームから自動送信</span>
+      </div>
+      <div class="overview-item">
+        <span class="icon">&#128172;</span>
+        <span>打ち合わせ中にデモサイトをその場で作成</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SLIDE 3: CHALLENGE 1 ===== -->
+<div class="slide" id="slide3">
+  <div class="slide-number">02</div>
+  <div class="section-label red" data-anim="fadeInUp" data-delay="200">課題 &#9312;</div>
+  <div class="challenge-content">
+    <div class="challenge-text" data-anim="fadeInLeft" data-delay="400">
+      <h2>古いホームページが<br>大量に放置されている</h2>
+      <p>
+        デザインが古い、スマートフォン未対応、更新が止まっているなど、
+        リニューアルが必要なサイトが数多く存在しています。
+        これはWeb制作会社にとって大きなビジネスチャンスです。
+      </p>
+      <div class="challenge-stat">
+        <div class="number">約70%</div>
+        <div class="desc">中小企業のサイトが3年以上更新されていない</div>
+      </div>
+    </div>
+    <div class="challenge-visual" data-anim="fadeInRight" data-delay="600">
+      <div class="mockup-old-site">
+        <div class="mockup-header">
+          <div class="mockup-dot r"></div>
+          <div class="mockup-dot y"></div>
+          <div class="mockup-dot g"></div>
+          <div class="mockup-url">example-company.co.jp</div>
+        </div>
+        <div class="mockup-body">
+          <div class="bar thick long" style="background:#d1d5db;"></div>
+          <div class="bar medium" style="margin-top:1vh;"></div>
+          <div class="bar long"></div>
+          <div class="bar short"></div>
+          <div style="display:flex;gap:0.5vw;margin-top:1vh;">
+            <div style="flex:1;height:8vh;background:#e5e7eb;border-radius:4px;"></div>
+            <div style="flex:1;height:8vh;background:#e5e7eb;border-radius:4px;"></div>
+          </div>
+          <div class="bar medium"></div>
+          <div class="bar short"></div>
+        </div>
+        <div class="outdated-stamp">OUTDATED</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SLIDE 4: CHALLENGE 2 ===== -->
+<div class="slide" id="slide4">
+  <div class="slide-number">03</div>
+  <div class="section-label red" data-anim="fadeInUp" data-delay="200">課題 &#9313;</div>
+  <div class="challenge-content">
+    <div class="challenge-text" data-anim="fadeInLeft" data-delay="400">
+      <h2>営業リソースが<br>圧倒的に不足している</h2>
+      <p>
+        手動で古いサイトを1件1件探し、提案書を作成し、
+        個別にアプローチする方法では、膨大な時間と人件費がかかります。
+      </p>
+      <p>
+        優秀な営業人材の採用・育成も難しく、
+        多くの制作会社が営業活動に課題を抱えています。
+      </p>
+      <div class="challenge-stat">
+        <div class="number">1件あたり約30分</div>
+        <div class="desc">手動での調査・提案書作成にかかる平均時間</div>
+      </div>
+    </div>
+    <div class="challenge-visual" data-anim="fadeInRight" data-delay="600">
+      <div style="text-align:center;">
+        <div style="font-size:clamp(60px,6vw,100px);margin-bottom:2vh;">&#9203;</div>
+        <div style="display:flex;gap:1.5vw;justify-content:center;margin-bottom:2vh;">
+          <div style="text-align:center;">
+            <div style="font-size:clamp(28px,2.5vw,46px);font-weight:900;color:var(--accent-red);">8時間</div>
+            <div style="font-size:clamp(13px,1vw,18px);color:var(--text-light);margin-top:0.5vh;">手動営業/日</div>
+          </div>
+          <div style="font-size:clamp(24px,2vw,40px);color:var(--text-light);align-self:center;">→</div>
+          <div style="text-align:center;">
+            <div style="font-size:clamp(28px,2.5vw,46px);font-weight:900;color:var(--accent-red);">16件</div>
+            <div style="font-size:clamp(13px,1vw,18px);color:var(--text-light);margin-top:0.5vh;">最大アプローチ数</div>
+          </div>
+        </div>
+        <div style="font-size:clamp(14px,1.1vw,20px);color:var(--text-light);">限られた人員では成長に限界がある</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SLIDE 5: CHALLENGE 3 ===== -->
+<div class="slide" id="slide5">
+  <div class="slide-number">04</div>
+  <div class="section-label red" data-anim="fadeInUp" data-delay="200">課題 &#9314;</div>
+  <div class="challenge-content">
+    <div class="challenge-text" data-anim="fadeInLeft" data-delay="400">
+      <h2>テンプレート営業では<br>反応率が低い</h2>
+      <p>
+        定型文のメールや一般的な提案では、
+        相手企業の目に留まりません。
+      </p>
+      <p>
+        「うちのサイトがどう変わるのか」という
+        具体的な改善イメージがなければ、
+        なかなか話を聞いてもらえないのが現実です。
+      </p>
+      <div class="challenge-stat">
+        <div class="number">約1〜2%</div>
+        <div class="desc">一般的なテンプレート営業メールの反応率</div>
+      </div>
+    </div>
+    <div class="challenge-visual" data-anim="fadeInRight" data-delay="600">
+      <div style="text-align:center;">
+        <div style="font-size:clamp(60px,6vw,100px);margin-bottom:2vh;">&#128233;</div>
+        <div style="display:flex;flex-direction:column;gap:1vh;max-width:300px;margin:0 auto;">
+          <div style="background:var(--accent-red-light);border-radius:10px;padding:1.5vh 1.5vw;text-align:left;">
+            <div style="font-size:clamp(13px,1vw,17px);color:var(--accent-red);font-weight:700;">テンプレートメール</div>
+            <div style="font-size:clamp(12px,0.85vw,15px);color:var(--text-light);margin-top:0.3vh;">「ホームページのリニューアルはいかがですか？」</div>
+          </div>
+          <div style="font-size:clamp(20px,1.5vw,28px);color:var(--text-light);">&#8595;</div>
+          <div style="background:#f1f5f9;border-radius:10px;padding:1.5vh 1.5vw;text-align:left;">
+            <div style="font-size:clamp(13px,1vw,17px);color:var(--text-light);font-weight:700;">反応なし</div>
+            <div style="font-size:clamp(12px,0.85vw,15px);color:var(--text-light);margin-top:0.3vh;">具体性がなく、興味を持ってもらえない</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SLIDE 6: FLOW OVERVIEW ===== -->
+<div class="slide" id="slide6">
+  <div class="slide-number">05</div>
+  <div class="section-label blue" data-anim="fadeInUp" data-delay="200">SERVICE FLOW</div>
+  <div class="slide-title" data-anim="fadeInUp" data-delay="300">サービスの全体フロー</div>
+  <div class="flow-vertical">
+    <div class="flow-item" data-anim="fadeInLeft" data-delay="500">
+      <div class="flow-number">1</div>
+      <div class="flow-item-text">
+        <h3>古いサイトを自動で発見</h3>
+        <p>AIが業種・地域を指定してリニューアルが必要なサイトを検出</p>
+      </div>
+    </div>
+    <div class="flow-connector"></div>
+    <div class="flow-item" data-anim="fadeInLeft" data-delay="700">
+      <div class="flow-number">2</div>
+      <div class="flow-item-text">
+        <h3>モダンデザインを自動生成</h3>
+        <p>その企業専用のリニューアルサンプルサイトをAIが作成</p>
+      </div>
+    </div>
+    <div class="flow-connector"></div>
+    <div class="flow-item" data-anim="fadeInLeft" data-delay="900">
+      <div class="flow-number">3</div>
+      <div class="flow-item-text">
+        <h3>提案書を自動作成</h3>
+        <p>Before/After比較を含む説得力のある提案内容を自動生成</p>
+      </div>
+    </div>
+    <div class="flow-connector"></div>
+    <div class="flow-item" data-anim="fadeInLeft" data-delay="1100">
+      <div class="flow-number">4</div>
+      <div class="flow-item-text">
+        <h3>問い合わせフォームから自動送信</h3>
+        <p>対象企業の問い合わせフォームに提案を自動で送信</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SLIDE 7: BEFORE ===== -->
+<div class="slide" id="slide7">
+  <div class="slide-number">06</div>
+  <div class="section-label red" data-anim="fadeInUp" data-delay="200">BEFORE</div>
+  <div class="slide-title" data-anim="fadeInUp" data-delay="300">リニューアル前のサイト（実際の画面）</div>
+  <div class="step-content">
+    <div class="step-text" data-anim="fadeInLeft" data-delay="500">
+      <h2>古いままのサイトが<br>抱える問題</h2>
+      <ul>
+        <li>デザインが10年以上前のまま</li>
+        <li>スマートフォンに未対応</li>
+        <li>表示速度が遅い</li>
+        <li>セキュリティ対策が不十分</li>
+        <li>問い合わせにつながらない</li>
+      </ul>
+    </div>
+    <div class="step-visual" data-anim="fadeInRight" data-delay="600">
+      <div class="browser-mock outdated-mark">
+        <div class="browser-bar">
+          <div class="dot r"></div>
+          <div class="dot y"></div>
+          <div class="dot g"></div>
+          <div class="url">example-company.co.jp</div>
+        </div>
+        <div class="iframe-container" id="beforeIframeContainer"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SLIDE 8: AFTER ===== -->
+<div class="slide" id="slide8">
+  <div class="slide-number">07</div>
+  <div class="section-label green" data-anim="fadeInUp" data-delay="200">AFTER</div>
+  <div class="slide-title" data-anim="fadeInUp" data-delay="300">AIが生成するモダンデザイン（実際の画面）</div>
+  <div class="step-content">
+    <div class="step-text" data-anim="fadeInLeft" data-delay="500">
+      <h2>企業の情報をもとに<br>最適なデザインを自動生成</h2>
+      <ul>
+        <li>レスポンシブ対応のモダンデザイン</li>
+        <li>企業の業種に合わせたレイアウト</li>
+        <li>高速表示・SEO対策済み</li>
+        <li>問い合わせ導線を最適化</li>
+        <li>そのまま提案サンプルとして活用可能</li>
+      </ul>
+    </div>
+    <div class="step-visual" data-anim="fadeInRight" data-delay="600">
+      <div class="browser-mock modern">
+        <div class="browser-bar">
+          <div class="dot r"></div>
+          <div class="dot y"></div>
+          <div class="dot g"></div>
+          <div class="url">example-company.co.jp（リニューアル案）</div>
+        </div>
+        <div class="iframe-container" id="afterIframeContainer"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SLIDE 9: AUTO MESSAGE ===== -->
+<div class="slide" id="slide9">
+  <div class="slide-number">08</div>
+  <div class="section-label blue" data-anim="fadeInUp" data-delay="200">STEP 3</div>
+  <div class="step-content">
+    <div class="step-text" data-anim="fadeInLeft" data-delay="400">
+      <h2>AIが最適な<br>メッセージを自動生成</h2>
+      <p>
+        対象企業のサイト内容を分析し、
+        その企業に合わせたオリジナルの提案メッセージを
+        AIが自動で作成します。
+      </p>
+      <p>
+        テンプレートではない、パーソナライズされた
+        メッセージだからこそ高い反応率を実現します。
+      </p>
+    </div>
+    <div class="step-visual" data-anim="fadeInRight" data-delay="600">
+      <div class="email-mockup">
+        <div class="email-mockup-header">
+          <div class="email-mockup-icon">&#129302;</div>
+          <h3>AI生成メッセージ</h3>
+        </div>
+        <div class="email-field">
+          <span class="label">宛先</span>
+          <span class="value">ご担当者様</span>
+        </div>
+        <div class="email-field">
+          <span class="label">件名</span>
+          <span class="value">ホームページリニューアルのご提案</span>
+        </div>
+        <div class="email-body-text">
+          突然のご連絡失礼いたします。<br>
+          貴社ホームページを拝見し、リニューアルの<br>
+          ご提案をさせていただきたくご連絡いたしました。<br><br>
+          現在のサイトをベースに、モダンなデザインの<br>
+          サンプルをご用意いたしました。<br><br>
+          &#9660; リニューアルサンプル<br>
+          <span class="highlight-box">https://sample.example.com/demo</span><br><br>
+          ご興味がございましたら、お気軽にご返信ください。
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SLIDE 10: AUTO FORM SUBMIT ===== -->
+<div class="slide" id="slide10">
+  <div class="slide-number">09</div>
+  <div class="section-label blue" data-anim="fadeInUp" data-delay="200">STEP 4</div>
+  <div class="step-content">
+    <div class="step-text" data-anim="fadeInLeft" data-delay="400">
+      <h2>問い合わせフォームへ<br>自動送信</h2>
+      <p>
+        対象企業のホームページにある問い合わせフォームを
+        AIが自動で検出し、提案メッセージを入力・送信します。
+      </p>
+      <p>
+        手動での入力作業は一切不要。
+        大量の企業に対して、効率的にアプローチできます。
+      </p>
+    </div>
+    <div class="step-visual" data-anim="fadeInRight" data-delay="600">
+      <div class="form-mockup" id="formMockup">
+        <div class="auto-badge" id="autoBadge">&#10004; 自動入力完了</div>
+        <div class="form-mockup-header">
+          &#128231; お問い合わせフォーム
+        </div>
+        <div class="form-mockup-body">
+          <div class="form-field">
+            <label>お名前 <span style="color:var(--accent-red);">*</span></label>
+            <div class="input-mock" id="autoName"></div>
+          </div>
+          <div class="form-field">
+            <label>メールアドレス <span style="color:var(--accent-red);">*</span></label>
+            <div class="input-mock" id="autoEmail"></div>
+          </div>
+          <div class="form-field">
+            <label>お問い合わせ内容 <span style="color:var(--accent-red);">*</span></label>
+            <div class="input-mock" id="autoMessage" style="min-height:10vh;white-space:pre-wrap;line-height:1.6;"></div>
+          </div>
+          <button class="form-submit-btn" id="autoSubmitBtn">送信する</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SLIDE 11: RESULT 1 ===== -->
+<div class="slide" id="slide11">
+  <div class="slide-number">10</div>
+  <div class="section-label green" data-anim="fadeInUp" data-delay="200">導入効果 &#9312;</div>
+  <div class="result-single" data-anim="fadeInUp" data-delay="400">
+    <div class="result-single-icon">&#128200;</div>
+    <div class="result-single-number" id="counter1">0</div>
+    <div class="result-single-label">件/日の自動営業</div>
+    <div class="result-single-desc">
+      1日あたり最大50件の企業に自動でアプローチ。<br>
+      手動では不可能な営業量を実現します。
+    </div>
+  </div>
+</div>
+
+<!-- ===== SLIDE 12: RESULT 2 ===== -->
+<div class="slide" id="slide12">
+  <div class="slide-number">11</div>
+  <div class="section-label green" data-anim="fadeInUp" data-delay="200">導入効果 &#9313;</div>
+  <div class="result-single" data-anim="fadeInUp" data-delay="400">
+    <div class="result-single-icon">&#128176;</div>
+    <div class="result-single-number" id="counter2">0%</div>
+    <div class="result-single-label">営業コスト削減</div>
+    <div class="result-single-desc">
+      人件費・交通費・時間コストを大幅に削減。<br>
+      少人数のチームでも大規模な営業活動が可能になります。
+    </div>
+  </div>
+</div>
+
+<!-- ===== SLIDE 13: RESULT 3 ===== -->
+<div class="slide" id="slide13">
+  <div class="slide-number">12</div>
+  <div class="section-label green" data-anim="fadeInUp" data-delay="200">導入効果 &#9314;</div>
+  <div class="result-single" data-anim="fadeInUp" data-delay="400">
+    <div class="result-single-icon">&#127919;</div>
+    <div class="result-single-number" id="counter3">0%</div>
+    <div class="result-single-label">反応率</div>
+    <div class="result-single-desc">
+      テンプレートではなく、実際のサンプルサイトを添付するため、<br>
+      一般的な営業メールと比較して高い反応率を実現します。
+    </div>
+  </div>
+</div>
+
+<!-- ===== SLIDE 14: SCHEDULE ===== -->
+<div class="slide" id="slide14">
+  <div class="slide-number">13</div>
+  <div class="section-label orange" data-anim="fadeInUp" data-delay="200">SCHEDULE</div>
+  <div class="slide-title" data-anim="fadeInUp" data-delay="300">導入スケジュール</div>
+  <div class="schedule-container">
+    <div class="schedule-item" data-anim="fadeInUp" data-delay="500">
+      <div class="schedule-month">1ヶ月目</div>
+      <h3>基本開発・導入</h3>
+      <ul>
+        <li>システム基盤の構築</li>
+        <li>AI設定・チューニング</li>
+        <li>テスト運用の開始</li>
+        <li>基本機能の完成</li>
+      </ul>
+    </div>
+    <div class="schedule-item" data-anim="fadeInUp" data-delay="700">
+      <div class="schedule-month">2ヶ月目</div>
+      <h3>現場カスタマイズ</h3>
+      <ul>
+        <li>ターゲット業種の最適化</li>
+        <li>メッセージテンプレート調整</li>
+        <li>現場の運用フローに合わせた改修</li>
+        <li>フィードバック反映</li>
+      </ul>
+    </div>
+    <div class="schedule-item" data-anim="fadeInUp" data-delay="900">
+      <div class="schedule-month">3ヶ月目</div>
+      <h3>運用最適化</h3>
+      <ul>
+        <li>効果測定・分析</li>
+        <li>反応率の改善施策</li>
+        <li>運用ノウハウの蓄積</li>
+        <li>本格運用の開始</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SLIDE 15: CTA ===== -->
+<div class="slide slide-cta" id="slide15">
+  <div class="cta-icon-big" data-anim="fadeInScale" data-delay="300">&#128640;</div>
+  <div class="cta-title-big" data-anim="fadeInUp" data-delay="600">
+    AIで営業を<span class="accent">自動化</span>しませんか？
+  </div>
+  <div class="cta-sub-big" data-anim="fadeInUp" data-delay="900">
+    まずはお気軽にご相談ください
+  </div>
+  <button class="cta-button-big" data-anim="fadeInUp" data-delay="1200">
+    お問い合わせはこちら &#10132;
+  </button>
+</div>
+
+<script>
+  const totalSlides = 15;
+  let currentSlide = 0;
+  let autoPlayTimer = null;
+  let isAutoPlaying = true;
+  const slideDurations = [
+    4000, 6000, 6000, 6000, 6000, 6000,
+    5000, 5000, 6000, 7000,
+    5000, 5000, 5000, 6000, 5000
+  ];
+
+  // Create indicators
+  const indicatorEl = document.getElementById('slideIndicators');
+  for (let i = 0; i < totalSlides; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'slide-dot' + (i === 0 ? ' active' : '');
+    dot.onclick = () => goToSlide(i);
+    indicatorEl.appendChild(dot);
+  }
+
+  function updatePageCounter() {
+    document.getElementById('pageCounter').textContent =
+      (currentSlide + 1) + ' / ' + totalSlides;
+  }
+
+  function animateElements(slideEl) {
+    const elements = slideEl.querySelectorAll('[data-anim]');
+    elements.forEach(el => {
+      const delay = parseInt(el.dataset.delay) || 0;
+      el.style.opacity = '0';
+      setTimeout(() => {
+        el.style.transition = 'all 0.7s cubic-bezier(0.16, 1, 0.3, 1)';
+        el.style.opacity = '1';
+        el.style.transform = 'translate(0, 0) scale(1)';
+      }, delay);
+    });
+  }
+
+  function resetElements(slideEl) {
+    const elements = slideEl.querySelectorAll('[data-anim]');
+    elements.forEach(el => {
+      el.style.transition = 'none';
+      el.style.opacity = '0';
+      const anim = el.dataset.anim;
+      if (anim === 'fadeInUp') el.style.transform = 'translateY(20px)';
+      else if (anim === 'fadeInLeft') el.style.transform = 'translateX(-30px)';
+      else if (anim === 'fadeInRight') el.style.transform = 'translateX(30px)';
+      else if (anim === 'fadeInScale') el.style.transform = 'scale(0.5)';
+      else if (anim === 'fadeIn') el.style.transform = 'none';
+    });
+  }
+
+  function goToSlide(index) {
+    if (index < 0 || index >= totalSlides) return;
+
+    const currentEl = document.getElementById('slide' + (currentSlide + 1));
+    if (currentEl) {
+      currentEl.style.animation = 'slideOut 0.4s ease forwards';
+      setTimeout(() => {
+        currentEl.classList.remove('active');
+        currentEl.style.animation = '';
+        resetElements(currentEl);
+      }, 400);
+    }
+
+    currentSlide = index;
+
+    setTimeout(() => {
+      const newEl = document.getElementById('slide' + (currentSlide + 1));
+      newEl.classList.add('active');
+      newEl.style.animation = 'slideIn 0.4s ease forwards';
+      animateElements(newEl);
+
+      // Trigger special animations
+      if (currentSlide === 9) startAutoFillAnimation();
+      if (currentSlide === 10) startCounterAnimation('counter1', 0, 50, 2000, '');
+      if (currentSlide === 11) startCounterAnimation('counter2', 0, 90, 2000, '%');
+      if (currentSlide === 12) startCounterAnimation('counter3', 0, 15, 2000, '%');
+
+      // Update indicators
+      document.querySelectorAll('.slide-dot').forEach((d, i) => {
+        d.classList.toggle('active', i === currentSlide);
+      });
+
+      // Update progress bar
+      document.getElementById('progressBar').style.width =
+        ((currentSlide + 1) / totalSlides * 100) + '%';
+
+      updatePageCounter();
+    }, 400);
+
+    if (isAutoPlaying) {
+      clearTimeout(autoPlayTimer);
+      autoPlayTimer = setTimeout(() => nextSlide(), slideDurations[currentSlide]);
+    }
+  }
+
+  function nextSlide() {
+    goToSlide(currentSlide < totalSlides - 1 ? currentSlide + 1 : 0);
+  }
+
+  function prevSlide() {
+    if (currentSlide > 0) goToSlide(currentSlide - 1);
+  }
+
+  function toggleAutoPlay() {
+    isAutoPlaying = !isAutoPlaying;
+    document.getElementById('playPauseBtn').innerHTML =
+      isAutoPlaying ? '&#9646;&#9646;' : '&#9654;';
+    if (isAutoPlaying) {
+      autoPlayTimer = setTimeout(() => nextSlide(), slideDurations[currentSlide]);
+    } else {
+      clearTimeout(autoPlayTimer);
+    }
+  }
+
+  // Auto-fill animation for slide 11
+  function startAutoFillAnimation() {
+    const nameEl = document.getElementById('autoName');
+    const emailEl = document.getElementById('autoEmail');
+    const msgEl = document.getElementById('autoMessage');
+    const badge = document.getElementById('autoBadge');
+    const btn = document.getElementById('autoSubmitBtn');
+
+    nameEl.textContent = '';
+    emailEl.textContent = '';
+    msgEl.textContent = '';
+    badge.style.display = 'none';
+    btn.style.background = 'var(--primary)';
+    btn.textContent = '送信する';
+
+    const typeText = (el, text, delay, callback) => {
+      let i = 0;
+      setTimeout(() => {
+        const interval = setInterval(() => {
+          el.textContent = text.substring(0, i + 1);
+          i++;
+          if (i >= text.length) {
+            clearInterval(interval);
+            if (callback) callback();
+          }
+        }, 40);
+      }, delay);
+    };
+
+    typeText(nameEl, '担当者名', 1500, () => {
+      typeText(emailEl, 'contact@example.com', 200, () => {
+        typeText(msgEl, '貴社HPリニューアルのご提案です。\nサンプルサイトをご用意しました。', 200, () => {
+          setTimeout(() => {
+            btn.style.background = 'var(--accent-green)';
+            btn.innerHTML = '&#10004; 送信完了';
+            badge.style.display = 'block';
+          }, 600);
+        });
+      });
+    });
+  }
+
+  // Counter animation
+  function startCounterAnimation(id, start, end, duration, suffix) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const startTime = performance.now();
+    function update(currentTime) {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const current = Math.round(start + (end - start) * eased);
+      el.textContent = current + suffix;
+      if (progress < 1) requestAnimationFrame(update);
+    }
+    setTimeout(() => requestAnimationFrame(update), 500);
+  }
+
+  // Keyboard controls
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); nextSlide(); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); prevSlide(); }
+    if (e.key === 'p') toggleAutoPlay();
+  });
+
+  // Setup iframes
+  function setupIframes() {
+    const beforeUrl = 'https://sutani-tekkou.com/company/';
+    const afterUrl = 'after-site.html';
+
+    const containers = [
+      { id: 'beforeIframeContainer', url: beforeUrl, w: 1400, h: 900 },
+      { id: 'afterIframeContainer', url: afterUrl, w: 1400, h: 900 }
+    ];
+
+    containers.forEach(c => {
+      const container = document.getElementById(c.id);
+      if (!container) return;
+
+      const iframe = document.createElement('iframe');
+      iframe.src = c.url;
+      iframe.style.width = c.w + 'px';
+      iframe.style.height = c.h + 'px';
+      iframe.setAttribute('loading', 'lazy');
+      iframe.setAttribute('sandbox', 'allow-same-origin allow-scripts');
+      container.appendChild(iframe);
+
+      const resizeObserver = new ResizeObserver(entries => {
+        for (const entry of entries) {
+          const containerWidth = entry.contentRect.width;
+          const scale = containerWidth / c.w;
+          iframe.style.transform = 'scale(' + scale + ')';
+          container.style.paddingBottom = ((c.h * scale) / containerWidth * 100) + '%';
+        }
+      });
+      resizeObserver.observe(container);
+    });
+  }
+
+  // Init
+  window.addEventListener('load', () => {
+    setupIframes();
+    const slide1 = document.getElementById('slide1');
+    slide1.classList.add('active');
+    animateElements(slide1);
+    document.getElementById('progressBar').style.width = (1 / totalSlides * 100) + '%';
+    updatePageCounter();
+    autoPlayTimer = setTimeout(() => nextSlide(), slideDurations[0]);
+  });
+</script>
+</body>
+</html>
