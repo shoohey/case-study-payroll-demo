@@ -1,0 +1,2042 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI開発事例 - CAD図面→実行予算 自動作成</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700;900&family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #f7f8f6;
+    --bg-sub: #eef0ec;
+    --bg-card: #ffffff;
+    --text: #1a2118;
+    --text-sub: #52614e;
+    --text-muted: #8a957f;
+    --border: #dbe3d8;
+    --border-light: #edf1eb;
+    --accent: #2c5a3a;
+    --accent-light: #3a7a4e;
+    --accent-dark: #1c3a26;
+    --accent-darker: #142c1c;
+    --accent-section: #edf4ef;
+    --accent-section-border: #c8d8cc;
+    --accent-subtotal: #f4f8f5;
+    --accent-label-bg: #eef5f0;
+    --accent-label-border: #ccddd2;
+    --danger: #b91c1c;
+    --danger-bg: #fef2f2;
+    --danger-border: #fee2e2;
+  }
+
+  body {
+    font-family: 'Noto Sans JP', 'Inter', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+  }
+
+  .scene {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100vw;
+    height: 100vh;
+    opacity: 0;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .scene.active { opacity: 1; pointer-events: auto; }
+
+  /* ===== SCENE HEADER ===== */
+  .scene-header {
+    display: flex;
+    align-items: center;
+    gap: 1.2vw;
+    margin-bottom: 4vh;
+    opacity: 0;
+    transform: translateX(-30px);
+    width: 100%;
+    border-bottom: 2px solid var(--text);
+    padding-bottom: 1.5vh;
+  }
+  .scene-number {
+    font-family: 'Inter', sans-serif;
+    font-size: clamp(14px, 1.1vw, 20px);
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 1px;
+    flex-shrink: 0;
+  }
+  .scene-title {
+    font-size: clamp(24px, 2.5vw, 46px);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+
+  /* ===== SCENE 1: TITLE ===== */
+  .scene1 {
+    background: var(--bg);
+    flex-direction: column;
+    gap: 3.5vh;
+    padding: 6vh 8vw;
+  }
+  .title-label {
+    font-size: clamp(13px, 1vw, 18px);
+    font-weight: 600;
+    letter-spacing: 3px;
+    color: var(--text-muted);
+    opacity: 0;
+    transform: translateY(20px);
+    text-transform: uppercase;
+    font-family: 'Inter', sans-serif;
+  }
+  .title-main {
+    font-size: clamp(40px, 5vw, 96px);
+    font-weight: 900;
+    line-height: 1.25;
+    opacity: 0;
+    transform: translateY(30px);
+    letter-spacing: -0.04em;
+    color: var(--text);
+  }
+  .title-sub {
+    font-size: clamp(18px, 1.4vw, 26px);
+    font-weight: 400;
+    color: var(--text-sub);
+    line-height: 1.8;
+    opacity: 0;
+    transform: translateY(20px);
+    max-width: 70vw;
+  }
+  .title-metrics {
+    display: flex;
+    gap: clamp(20px, 2.5vw, 48px);
+    margin-top: 2vh;
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  .metric-item {
+    text-align: left;
+    padding: 2vh 2vw;
+    border-left: 3px solid var(--accent);
+    min-width: clamp(140px, 14vw, 240px);
+  }
+  .metric-value {
+    font-size: clamp(32px, 3vw, 56px);
+    font-weight: 800;
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+  }
+  .metric-label {
+    font-size: clamp(13px, 0.9vw, 17px);
+    color: var(--text-muted);
+    margin-top: 4px;
+    font-weight: 500;
+  }
+
+  /* ===== SCENE 2: OVERVIEW ===== */
+  .scene2 {
+    background: var(--bg);
+    flex-direction: column;
+    padding: 5vh 8vw;
+    gap: 3vh;
+  }
+  .overview-card {
+    width: 100%;
+    border-radius: 10px;
+    padding: 4vh 4vw;
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  .overview-card.problem {
+    background: var(--danger-bg);
+    border: 1.5px solid var(--danger-border);
+  }
+  .overview-card.solution {
+    background: var(--accent-section);
+    border: 1.5px solid var(--accent-section-border);
+  }
+  .overview-label {
+    font-size: clamp(14px, 1vw, 18px);
+    font-weight: 700;
+    letter-spacing: 2px;
+    margin-bottom: 2vh;
+    font-family: 'Inter', sans-serif;
+  }
+  .overview-label.problem-label { color: var(--danger); }
+  .overview-label.solution-label { color: var(--accent); }
+  .overview-items {
+    display: flex;
+    flex-direction: column;
+    gap: 1.2vh;
+  }
+  .overview-item {
+    font-size: clamp(18px, 1.4vw, 26px);
+    line-height: 1.6;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 0.8vw;
+  }
+  .overview-item::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .overview-card.problem .overview-item::before { background: var(--danger); }
+  .overview-card.solution .overview-item::before { background: var(--accent); }
+  .overview-item strong {
+    font-weight: 800;
+  }
+  .overview-arrow {
+    text-align: center;
+    font-size: clamp(18px, 1.3vw, 24px);
+    font-weight: 700;
+    color: var(--accent);
+    opacity: 0;
+    transform: translateY(10px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5vh;
+  }
+  .overview-arrow-icon {
+    font-size: clamp(24px, 2vw, 36px);
+  }
+
+  /* ===== SCENES 3-5: PROBLEM PAGES ===== */
+  .problem-page {
+    background: var(--bg);
+    flex-direction: column;
+    align-items: center;
+    padding: 5vh 8vw;
+  }
+  .problem-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 3vh;
+    flex: 1;
+    justify-content: center;
+  }
+  .problem-stat-hero {
+    font-size: clamp(64px, 7vw, 134px);
+    font-weight: 900;
+    color: var(--danger);
+    font-family: 'Inter', sans-serif;
+    line-height: 1;
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  .problem-stat-sub {
+    font-size: clamp(18px, 1.3vw, 24px);
+    color: var(--text-sub);
+    font-weight: 500;
+    margin-top: -1vh;
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  .problem-title-text {
+    font-size: clamp(28px, 2.5vw, 46px);
+    font-weight: 700;
+    line-height: 1.4;
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  .problem-desc-text {
+    font-size: clamp(18px, 1.3vw, 24px);
+    color: var(--text-sub);
+    line-height: 1.8;
+    max-width: 60vw;
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  /* ===== SCENE 6: APPROACH ===== */
+  .scene6 {
+    background: var(--bg);
+    flex-direction: column;
+    padding: 5vh 5vw;
+  }
+  .timeline {
+    display: flex;
+    align-items: flex-start;
+    width: 100%;
+    gap: 0;
+    margin-top: 4vh;
+    position: relative;
+  }
+  .timeline::before {
+    content: '';
+    position: absolute;
+    top: clamp(36px, 3.5vw, 60px);
+    left: 10%;
+    right: 10%;
+    height: 3px;
+    background: var(--border);
+  }
+  .timeline-phase {
+    flex: 1;
+    text-align: center;
+    opacity: 0;
+    transform: translateY(30px);
+    position: relative;
+    padding: 0 1.5vw;
+  }
+  .timeline-dot {
+    width: clamp(56px, 5vw, 80px);
+    height: clamp(56px, 5vw, 80px);
+    border-radius: 50%;
+    margin: 0 auto 2.5vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Inter', sans-serif;
+    font-weight: 800;
+    font-size: clamp(13px, 1vw, 18px);
+    position: relative;
+    z-index: 1;
+  }
+  .timeline-dot.day0 {
+    background: var(--accent-section);
+    border: 2.5px solid var(--accent);
+    color: var(--accent);
+  }
+  .timeline-dot.month1 {
+    background: var(--accent);
+    border: 2.5px solid var(--accent-dark);
+    color: white;
+  }
+  .timeline-dot.month23 {
+    background: var(--accent-section);
+    border: 2.5px solid var(--accent);
+    color: var(--accent);
+  }
+  .timeline-phase h3 {
+    font-size: clamp(20px, 1.6vw, 28px);
+    font-weight: 700;
+    margin-bottom: 1.5vh;
+  }
+  .timeline-phase p {
+    font-size: clamp(16px, 1.1vw, 20px);
+    color: var(--text-sub);
+    line-height: 1.7;
+  }
+
+  /* ===== SCENE 7: FLOW ===== */
+  .scene7 {
+    background: var(--bg);
+    flex-direction: column;
+    padding: 5vh 5vw;
+  }
+  .flow-container {
+    display: flex;
+    align-items: flex-start;
+    width: 100%;
+    margin-top: 4vh;
+  }
+  .flow-step {
+    flex: 1;
+    text-align: center;
+    opacity: 0;
+    transform: translateY(30px);
+    padding: 0 1vw;
+  }
+  .flow-num {
+    width: clamp(52px, 5vw, 84px);
+    height: clamp(52px, 5vw, 84px);
+    margin: 0 auto 2vh;
+    border: 2.5px solid var(--accent);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(20px, 1.8vw, 32px);
+    font-family: 'Inter', sans-serif;
+    font-weight: 800;
+    color: var(--accent);
+  }
+  .flow-step h3 {
+    font-size: clamp(18px, 1.4vw, 26px);
+    font-weight: 700;
+    margin-bottom: 1vh;
+  }
+  .flow-step p {
+    font-size: clamp(15px, 1.1vw, 20px);
+    color: var(--text-sub);
+    line-height: 1.7;
+  }
+  .flow-arrow {
+    font-size: clamp(22px, 2vw, 36px);
+    color: var(--border);
+    opacity: 0;
+    flex-shrink: 0;
+    width: clamp(30px, 3vw, 50px);
+    text-align: center;
+    padding-top: clamp(20px, 2vw, 34px);
+  }
+
+  /* ===== SCENE 8: INPUT (CAD) ===== */
+  .scene8 {
+    background: var(--bg);
+    flex-direction: column;
+    padding: 3.5vh 4vw;
+  }
+  .input-container {
+    width: 100%;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  .excel-frame {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--bg);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .excel-toolbar {
+    background: var(--bg-sub);
+    border-bottom: 1px solid var(--border);
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: clamp(12px, 0.8vw, 15px);
+    color: var(--text-muted);
+    font-family: 'Inter', monospace;
+  }
+  .excel-toolbar-title {
+    font-weight: 600;
+    color: var(--text-sub);
+  }
+  .cad-note {
+    text-align: center;
+    padding: 1vh 0;
+    font-size: clamp(14px, 1vw, 18px);
+    color: var(--text-sub);
+    border-top: 1px solid var(--border-light);
+    font-weight: 500;
+  }
+
+  /* ===== SCENE 9: OUTPUT (Excel) ===== */
+  .scene9 {
+    background: var(--bg);
+    flex-direction: column;
+    padding: 3.5vh 4vw;
+  }
+  .output-container {
+    width: 100%;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  .est-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: clamp(12px, 0.8vw, 15px);
+    font-family: 'Inter', 'Noto Sans JP', monospace;
+  }
+  .est-table th {
+    background: var(--accent);
+    color: white;
+    font-weight: 600;
+    padding: 0.8vh 0.6vw;
+    text-align: left;
+    border: 1px solid var(--accent-dark);
+    white-space: nowrap;
+  }
+  .est-table th.r { text-align: right; }
+  .est-table td {
+    padding: 0.5vh 0.6vw;
+    border: 1px solid var(--border-light);
+    color: var(--text-sub);
+    white-space: nowrap;
+  }
+  .est-table td.r { text-align: right; font-family: 'Inter', monospace; }
+  .est-table tr.section td {
+    background: var(--accent-section);
+    font-weight: 700;
+    color: var(--accent);
+    border-bottom: 1px solid var(--accent-section-border);
+  }
+  .est-table tr.subtotal td {
+    background: var(--accent-subtotal);
+    font-weight: 600;
+    color: var(--text);
+    border-top: 1px solid var(--border);
+  }
+  .est-table tr.total td {
+    background: var(--accent);
+    color: white;
+    font-weight: 800;
+    font-size: clamp(13px, 0.9vw, 16px);
+    border: 1px solid var(--accent-dark);
+  }
+  .est-table tr.total-tax td {
+    background: var(--accent-dark);
+    color: white;
+    font-weight: 800;
+    font-size: clamp(14px, 1vw, 18px);
+    border: 1px solid var(--accent-darker);
+  }
+
+  /* ===== SCENE 10: ACCURACY ===== */
+  .scene10 {
+    background: var(--bg);
+    flex-direction: column;
+    padding: 5vh 6vw;
+  }
+  .accuracy-content {
+    display: flex;
+    flex-direction: column;
+    gap: 3vh;
+    width: 100%;
+  }
+  .accuracy-hero {
+    text-align: center;
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  .accuracy-hero h3 {
+    font-size: clamp(28px, 2.5vw, 46px);
+    font-weight: 700;
+    margin-bottom: 1.5vh;
+  }
+  .accuracy-hero p {
+    font-size: clamp(16px, 1.2vw, 22px);
+    color: var(--text-sub);
+    line-height: 1.7;
+  }
+  .accuracy-features {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1vh 3vw;
+    justify-content: center;
+    margin: 1vh 0;
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  .accuracy-feat {
+    display: flex;
+    align-items: center;
+    gap: 0.6vw;
+    font-size: clamp(15px, 1.1vw, 20px);
+    color: var(--text-sub);
+  }
+  .accuracy-feat::before {
+    content: '';
+    width: 7px;
+    height: 7px;
+    background: var(--accent);
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+  .acc-bars {
+    width: 80%;
+    margin: 0 auto;
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  .acc-bar-section-title {
+    font-size: clamp(12px, 0.8vw, 15px);
+    font-weight: 700;
+    color: var(--text-muted);
+    letter-spacing: 2px;
+    margin-bottom: 1.5vh;
+    text-transform: uppercase;
+    font-family: 'Inter', sans-serif;
+  }
+  .acc-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 1vw;
+    margin-bottom: 1vh;
+  }
+  .acc-bar-label {
+    font-size: clamp(14px, 1vw, 18px);
+    font-weight: 500;
+    width: 8vw;
+    flex-shrink: 0;
+    color: var(--text-sub);
+  }
+  .acc-bar-track {
+    flex: 1;
+    height: 12px;
+    background: var(--bg-sub);
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid var(--border-light);
+  }
+  .acc-bar-fill {
+    height: 100%;
+    border-radius: 6px;
+    background: var(--accent);
+    transition: width 1.5s cubic-bezier(0.16, 1, 0.3, 1);
+    width: 0%;
+  }
+  .acc-bar-val {
+    font-family: 'Inter', monospace;
+    font-size: clamp(14px, 1vw, 18px);
+    font-weight: 700;
+    width: 5vw;
+    text-align: right;
+    flex-shrink: 0;
+    color: var(--text);
+  }
+  .acc-bar-row.total .acc-bar-label { font-weight: 700; color: var(--text); }
+  .acc-bar-row.total .acc-bar-track { height: 16px; }
+  .acc-bar-row.total .acc-bar-val { font-size: clamp(16px, 1.2vw, 22px); font-weight: 800; }
+
+  /* ===== SCENE 11: PROFIT TABLE ===== */
+  .scene11 {
+    background: var(--bg);
+    flex-direction: column;
+    padding: 3.5vh 4vw;
+  }
+  .profit-container {
+    width: 100%;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2vh;
+  }
+  .profit-summary {
+    display: flex;
+    gap: 2vw;
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  .profit-summary-item {
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    padding: 2vh 2vw;
+    text-align: center;
+    flex: 1;
+    background: var(--bg-card);
+  }
+  .profit-summary-val {
+    font-size: clamp(24px, 2.2vw, 40px);
+    font-weight: 800;
+    font-family: 'Inter', sans-serif;
+    color: var(--text);
+  }
+  .profit-summary-label {
+    font-size: clamp(13px, 0.9vw, 16px);
+    color: var(--text-muted);
+    margin-top: 4px;
+  }
+  .profit-table-wrap {
+    opacity: 0;
+    transform: translateY(20px);
+    flex: 1;
+    min-height: 0;
+  }
+  .profit-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: clamp(11px, 0.75vw, 14px);
+    font-family: 'Inter', 'Noto Sans JP', monospace;
+  }
+  .profit-table th {
+    background: var(--accent);
+    color: white;
+    font-weight: 600;
+    padding: 0.6vh 0.5vw;
+    text-align: left;
+    border: 1px solid var(--accent-dark);
+    white-space: nowrap;
+  }
+  .profit-table th.r { text-align: right; }
+  .profit-table td {
+    padding: 0.35vh 0.5vw;
+    border: 1px solid var(--border-light);
+    color: var(--text-sub);
+    white-space: nowrap;
+  }
+  .profit-table td.r { text-align: right; font-family: 'Inter', monospace; }
+  .profit-table tr.total td {
+    background: var(--accent-section);
+    font-weight: 700;
+    color: var(--text);
+    border-top: 2px solid var(--accent);
+  }
+
+  /* ===== SCENES 12-14: RESULT PAGES ===== */
+  .result-page {
+    background: var(--bg);
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 6vh 10vw;
+    gap: 2vh;
+  }
+  .result-hero-number {
+    font-size: clamp(100px, 12vw, 220px);
+    font-weight: 900;
+    color: var(--accent);
+    font-family: 'Inter', sans-serif;
+    line-height: 1;
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  .result-hero-label {
+    font-size: clamp(24px, 2.2vw, 40px);
+    font-weight: 700;
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  .result-hero-desc {
+    font-size: clamp(18px, 1.3vw, 24px);
+    color: var(--text-sub);
+    line-height: 1.8;
+    opacity: 0;
+    transform: translateY(20px);
+    max-width: 50vw;
+  }
+
+  /* ===== SCENE 15: CTA ===== */
+  .scene15 {
+    background: var(--bg-sub);
+    flex-direction: column;
+    gap: 3.5vh;
+    align-items: center;
+    justify-content: center;
+  }
+  .cta-title {
+    font-size: clamp(32px, 3.5vw, 66px);
+    font-weight: 900;
+    text-align: center;
+    opacity: 0;
+    transform: translateY(30px);
+    letter-spacing: -0.03em;
+  }
+  .cta-sub {
+    font-size: clamp(18px, 1.4vw, 26px);
+    color: var(--text-sub);
+    text-align: center;
+    opacity: 0;
+    transform: translateY(20px);
+    line-height: 1.8;
+  }
+  .cta-button {
+    padding: 2.5vh 5vw;
+    background: var(--accent);
+    border-radius: 6px;
+    font-size: clamp(18px, 1.3vw, 24px);
+    font-weight: 700;
+    opacity: 0;
+    transform: translateY(20px);
+    cursor: pointer;
+    border: none;
+    color: white;
+    font-family: 'Noto Sans JP', sans-serif;
+    letter-spacing: 1px;
+  }
+  .cta-contact {
+    font-size: clamp(15px, 1vw, 18px);
+    color: var(--text-muted);
+    opacity: 0;
+    transform: translateY(20px);
+    font-family: 'Inter', sans-serif;
+  }
+
+  /* ===== NAVIGATION ===== */
+  @keyframes sceneIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes sceneOut { from { opacity: 1; } to { opacity: 0; } }
+
+  .progress-bar {
+    position: fixed;
+    bottom: 0; left: 0;
+    height: 3px;
+    background: var(--accent);
+    z-index: 100;
+    transition: width 0.3s ease;
+  }
+  .scene-indicators {
+    position: fixed;
+    right: 2vw;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 0.8vh;
+    z-index: 100;
+  }
+  .scene-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--border);
+    transition: all 0.3s ease;
+    cursor: pointer;
+  }
+  .scene-dot.active {
+    background: var(--accent);
+    transform: scale(1.4);
+  }
+  .controls {
+    position: fixed;
+    bottom: 2vh;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 0.8vw;
+    z-index: 100;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  body:hover .controls { opacity: 1; }
+  .ctrl-btn {
+    width: clamp(36px, 2.6vw, 48px);
+    height: clamp(36px, 2.6vw, 48px);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--text-sub);
+    font-size: clamp(13px, 1vw, 18px);
+    transition: all 0.2s ease;
+  }
+  .ctrl-btn:hover { background: var(--bg-sub); border-color: var(--accent); color: var(--accent); }
+</style>
+</head>
+<body>
+
+<div class="progress-bar" id="progressBar"></div>
+<div class="scene-indicators" id="sceneIndicators"></div>
+<div class="controls">
+  <div class="ctrl-btn" onclick="prevScene()">&#9664;</div>
+  <div class="ctrl-btn" id="playPauseBtn" onclick="toggleAutoPlay()">&#9646;&#9646;</div>
+  <div class="ctrl-btn" onclick="nextScene()">&#9654;</div>
+</div>
+
+<!-- ===== SCENE 1: TITLE ===== -->
+<div class="scene scene1" id="scene1">
+  <div class="title-label" data-anim="fadeInUp" data-delay="200">AI DEVELOPMENT CASE STUDY</div>
+  <div class="title-main" data-anim="fadeInUp" data-delay="500">
+    CAD図面から<br>実行予算を即時作成
+  </div>
+  <div class="title-sub" data-anim="fadeInUp" data-delay="800">
+    建築CAD図面をアップロードするだけで、<br>22工種・100項目超の実行予算書を自動生成。
+  </div>
+  <div class="title-metrics" data-anim="fadeInUp" data-delay="1100">
+    <div class="metric-item">
+      <div class="metric-value">2%以内</div>
+      <div class="metric-label">人との誤差</div>
+    </div>
+    <div class="metric-item">
+      <div class="metric-value">3分</div>
+      <div class="metric-label">作成時間</div>
+    </div>
+    <div class="metric-item">
+      <div class="metric-value">22工種</div>
+      <div class="metric-label">自動積算</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCENE 2: OVERVIEW ===== -->
+<div class="scene scene2" id="scene2">
+  <div class="scene-header" data-anim="fadeInLeft" data-delay="200">
+    <div class="scene-title">課題と解決策の全体像</div>
+  </div>
+  <div class="overview-card problem" data-anim="fadeInUp" data-delay="400">
+    <div class="overview-label problem-label">課題</div>
+    <div class="overview-items">
+      <div class="overview-item">見積作成に<strong>8〜16時間</strong>の手作業が発生</div>
+      <div class="overview-item">ベテラン積算担当者にしか作れない<strong>属人業務</strong></div>
+      <div class="overview-item">見積ミスが<strong>数十万円の赤字</strong>に直結するリスク</div>
+    </div>
+  </div>
+  <div class="overview-arrow" data-anim="fadeInUp" data-delay="700">
+    <div class="overview-arrow-icon">&#9660;</div>
+    <div>AIエージェントで解決</div>
+  </div>
+  <div class="overview-card solution" data-anim="fadeInUp" data-delay="1000">
+    <div class="overview-label solution-label">解決</div>
+    <div class="overview-items">
+      <div class="overview-item"><strong>3分</strong>で22工種の実行予算書を自動生成</div>
+      <div class="overview-item">ベテランの積算結果と<strong>誤差2%以内</strong>の精度</div>
+      <div class="overview-item">粗利率の自動計算まで含め<strong>完全自動化</strong></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCENE 3: PROBLEM 1 ===== -->
+<div class="scene problem-page" id="scene3">
+  <div class="scene-header" data-anim="fadeInLeft" data-delay="200">
+    <div class="scene-number">01</div>
+    <div class="scene-title">課題1 &#8212; 膨大な手作業</div>
+  </div>
+  <div class="problem-content">
+    <div class="problem-stat-hero" data-anim="fadeInUp" data-delay="400">8-16時間</div>
+    <div class="problem-stat-sub" data-anim="fadeInUp" data-delay="600">/ 1棟あたりの見積作成時間</div>
+    <div class="problem-title-text" data-anim="fadeInUp" data-delay="800">図面を見ながら1行ずつ手入力</div>
+    <div class="problem-desc-text" data-anim="fadeInUp" data-delay="1000">
+      CAD図面から面積・数量を読み取り、Excelに1項目ずつ入力。<br>
+      100項目以上の明細を手作業で作成し、打ち間違いが致命傷に。
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCENE 4: PROBLEM 2 ===== -->
+<div class="scene problem-page" id="scene4">
+  <div class="scene-header" data-anim="fadeInLeft" data-delay="200">
+    <div class="scene-number">02</div>
+    <div class="scene-title">課題2 &#8212; 属人化</div>
+  </div>
+  <div class="problem-content">
+    <div class="problem-stat-hero" data-anim="fadeInUp" data-delay="400">10年+</div>
+    <div class="problem-stat-sub" data-anim="fadeInUp" data-delay="600">の経験が必要</div>
+    <div class="problem-title-text" data-anim="fadeInUp" data-delay="800">ベテランしか作れない</div>
+    <div class="problem-desc-text" data-anim="fadeInUp" data-delay="1000">
+      単価感覚、仕様の読み取り、工種ごとの勘所は<br>
+      経験がないと判断できない。新人では精度が出ず、属人化が深刻。
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCENE 5: PROBLEM 3 ===== -->
+<div class="scene problem-page" id="scene5">
+  <div class="scene-header" data-anim="fadeInLeft" data-delay="200">
+    <div class="scene-number">03</div>
+    <div class="scene-title">課題3 &#8212; 見積ミスのリスク</div>
+  </div>
+  <div class="problem-content">
+    <div class="problem-stat-hero" data-anim="fadeInUp" data-delay="400">5-10%</div>
+    <div class="problem-stat-sub" data-anim="fadeInUp" data-delay="600">ヒューマンエラー率</div>
+    <div class="problem-title-text" data-anim="fadeInUp" data-delay="800">見積ミス = 利益消失</div>
+    <div class="problem-desc-text" data-anim="fadeInUp" data-delay="1000">
+      数量の拾い間違い、単価設定ミス、工種の漏れ。<br>
+      1つのミスが数十万円の赤字に直結し、チェック工数も膨大。
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCENE 6: APPROACH ===== -->
+<div class="scene scene6" id="scene6">
+  <div class="scene-header" data-anim="fadeInLeft" data-delay="200">
+    <div class="scene-number">04</div>
+    <div class="scene-title">開発アプローチ</div>
+  </div>
+  <div class="timeline">
+    <div class="timeline-phase" data-anim="fadeInUp" data-delay="400">
+      <div class="timeline-dot day0">Day 0</div>
+      <h3>初回打ち合わせ</h3>
+      <p>ヒアリング内容をもとに<br>その場でコンセプトデモを作成。<br>方向性を即座にすり合わせ。</p>
+    </div>
+    <div class="timeline-phase" data-anim="fadeInUp" data-delay="700">
+      <div class="timeline-dot month1">1ヶ月目</div>
+      <h3>本番システム開発</h3>
+      <p>22工種の自動積算、<br>粗利計算、Excel出力まで<br>本番システムを開発・納品。</p>
+    </div>
+    <div class="timeline-phase" data-anim="fadeInUp" data-delay="1000">
+      <div class="timeline-dot month23">2-3ヶ月目</div>
+      <h3>現場カスタマイズ</h3>
+      <p>実際の運用フローに合わせて<br>単価マスタの最適化、<br>追加機能の実装・調整。</p>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCENE 7: FLOW ===== -->
+<div class="scene scene7" id="scene7">
+  <div class="scene-header" data-anim="fadeInLeft" data-delay="200">
+    <div class="scene-number">05</div>
+    <div class="scene-title">AIエージェントによる自動見積フロー</div>
+  </div>
+  <div class="flow-container">
+    <div class="flow-step" data-anim="fadeInUp" data-delay="400">
+      <div class="flow-num">1</div>
+      <h3>CAD図面<br>アップロード</h3>
+      <p>PDF or DXF形式の<br>図面をドラッグ&ドロップ</p>
+    </div>
+    <div class="flow-arrow" data-anim="fadeIn" data-delay="700">&#8594;</div>
+    <div class="flow-step" data-anim="fadeInUp" data-delay="800">
+      <div class="flow-num">2</div>
+      <h3>AI自動読み取り</h3>
+      <p>面積・仕様・建材を<br>AIが図面から自動抽出</p>
+    </div>
+    <div class="flow-arrow" data-anim="fadeIn" data-delay="1100">&#8594;</div>
+    <div class="flow-step" data-anim="fadeInUp" data-delay="1200">
+      <div class="flow-num">3</div>
+      <h3>22工種を<br>自動積算</h3>
+      <p>単価マスタと照合し<br>数量×単価を自動計算</p>
+    </div>
+    <div class="flow-arrow" data-anim="fadeIn" data-delay="1500">&#8594;</div>
+    <div class="flow-step" data-anim="fadeInUp" data-delay="1600">
+      <div class="flow-num">4</div>
+      <h3>見積書を出力</h3>
+      <p>Excel形式で即時出力<br>粗利率も自動計算</p>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCENE 8: INPUT - CAD図面 ===== -->
+<div class="scene scene8" id="scene8">
+  <div class="scene-header" data-anim="fadeInLeft" data-delay="200">
+    <div class="scene-number">06</div>
+    <div class="scene-title">INPUT &#8212; CAD図面</div>
+  </div>
+  <div class="input-container" data-anim="fadeInUp" data-delay="400">
+    <div class="excel-frame" style="flex:1;min-height:0;">
+      <div class="excel-toolbar">
+        <span class="excel-toolbar-title">1F_平面図.dxf</span>
+        <span style="margin-left:auto;">在来木造 2階建 / 延床 115.30㎡</span>
+      </div>
+      <div style="background:#fff;padding:2px;flex:1;min-height:0;display:flex;">
+        <svg viewBox="0 0 750 570" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;display:block;">
+          <!-- ====== DEFS: Patterns ====== -->
+          <defs>
+            <pattern id="cadgrid" width="20" height="20" patternUnits="userSpaceOnUse">
+              <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#e8e8e8" stroke-width="0.2"/>
+            </pattern>
+            <pattern id="cadgrid-sub" width="100" height="100" patternUnits="userSpaceOnUse">
+              <path d="M 100 0 L 0 0 0 100" fill="none" stroke="#d5d5d5" stroke-width="0.3"/>
+            </pattern>
+            <pattern id="insul" width="3.5" height="3.5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+              <line x1="0" y1="0" x2="0" y2="3.5" stroke="#b0b0b0" stroke-width="0.25"/>
+            </pattern>
+            <marker id="dimArrow" viewBox="0 0 6 6" refX="3" refY="3" markerWidth="4" markerHeight="4" orient="auto">
+              <path d="M0,0 L6,3 L0,6 Z" fill="#c00"/>
+            </marker>
+            <marker id="secArrow" viewBox="0 0 8 8" refX="4" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+              <path d="M0,1 L7,4 L0,7 Z" fill="#333"/>
+            </marker>
+          </defs>
+
+          <!-- ====== BACKGROUND ====== -->
+          <rect width="750" height="570" fill="url(#cadgrid)"/>
+          <rect width="750" height="570" fill="url(#cadgrid-sub)"/>
+
+          <!-- ====== 通り芯 GRID AXIS LINES (一点鎖線) ====== -->
+          <line x1="100" y1="15" x2="100" y2="430" stroke="#2266aa" stroke-width="0.3" stroke-dasharray="10,3,2,3"/>
+          <line x1="195" y1="15" x2="195" y2="430" stroke="#2266aa" stroke-width="0.3" stroke-dasharray="10,3,2,3"/>
+          <line x1="290" y1="15" x2="290" y2="430" stroke="#2266aa" stroke-width="0.3" stroke-dasharray="10,3,2,3"/>
+          <line x1="385" y1="15" x2="385" y2="430" stroke="#2266aa" stroke-width="0.3" stroke-dasharray="10,3,2,3"/>
+          <line x1="480" y1="15" x2="480" y2="430" stroke="#2266aa" stroke-width="0.3" stroke-dasharray="10,3,2,3"/>
+          <line x1="575" y1="15" x2="575" y2="430" stroke="#2266aa" stroke-width="0.3" stroke-dasharray="10,3,2,3"/>
+          <line x1="55" y1="55" x2="625" y2="55" stroke="#2266aa" stroke-width="0.3" stroke-dasharray="10,3,2,3"/>
+          <line x1="55" y1="165" x2="625" y2="165" stroke="#2266aa" stroke-width="0.3" stroke-dasharray="10,3,2,3"/>
+          <line x1="55" y1="240" x2="625" y2="240" stroke="#2266aa" stroke-width="0.3" stroke-dasharray="10,3,2,3"/>
+          <line x1="55" y1="320" x2="625" y2="320" stroke="#2266aa" stroke-width="0.3" stroke-dasharray="10,3,2,3"/>
+          <line x1="55" y1="400" x2="625" y2="400" stroke="#2266aa" stroke-width="0.3" stroke-dasharray="10,3,2,3"/>
+
+          <!-- 通り芯 Labels -->
+          <circle cx="100" cy="10" r="8" fill="none" stroke="#2266aa" stroke-width="0.6"/><text x="100" y="13" text-anchor="middle" fill="#2266aa" font-size="7" font-family="Inter,sans-serif" font-weight="600">X1</text>
+          <circle cx="195" cy="10" r="8" fill="none" stroke="#2266aa" stroke-width="0.6"/><text x="195" y="13" text-anchor="middle" fill="#2266aa" font-size="7" font-family="Inter,sans-serif" font-weight="600">X2</text>
+          <circle cx="290" cy="10" r="8" fill="none" stroke="#2266aa" stroke-width="0.6"/><text x="290" y="13" text-anchor="middle" fill="#2266aa" font-size="7" font-family="Inter,sans-serif" font-weight="600">X3</text>
+          <circle cx="385" cy="10" r="8" fill="none" stroke="#2266aa" stroke-width="0.6"/><text x="385" y="13" text-anchor="middle" fill="#2266aa" font-size="7" font-family="Inter,sans-serif" font-weight="600">X4</text>
+          <circle cx="480" cy="10" r="8" fill="none" stroke="#2266aa" stroke-width="0.6"/><text x="480" y="13" text-anchor="middle" fill="#2266aa" font-size="7" font-family="Inter,sans-serif" font-weight="600">X5</text>
+          <circle cx="575" cy="10" r="8" fill="none" stroke="#2266aa" stroke-width="0.6"/><text x="575" y="13" text-anchor="middle" fill="#2266aa" font-size="7" font-family="Inter,sans-serif" font-weight="600">X6</text>
+          <circle cx="62" cy="55" r="8" fill="none" stroke="#2266aa" stroke-width="0.6"/><text x="62" y="58" text-anchor="middle" fill="#2266aa" font-size="7" font-family="Inter,sans-serif" font-weight="600">Y1</text>
+          <circle cx="62" cy="165" r="8" fill="none" stroke="#2266aa" stroke-width="0.6"/><text x="62" y="168" text-anchor="middle" fill="#2266aa" font-size="7" font-family="Inter,sans-serif" font-weight="600">Y2</text>
+          <circle cx="62" cy="240" r="8" fill="none" stroke="#2266aa" stroke-width="0.6"/><text x="62" y="243" text-anchor="middle" fill="#2266aa" font-size="7" font-family="Inter,sans-serif" font-weight="600">Y3</text>
+          <circle cx="62" cy="320" r="8" fill="none" stroke="#2266aa" stroke-width="0.6"/><text x="62" y="323" text-anchor="middle" fill="#2266aa" font-size="7" font-family="Inter,sans-serif" font-weight="600">Y4</text>
+          <circle cx="62" cy="400" r="8" fill="none" stroke="#2266aa" stroke-width="0.6"/><text x="62" y="403" text-anchor="middle" fill="#2266aa" font-size="7" font-family="Inter,sans-serif" font-weight="600">Y5</text>
+
+          <!-- ====== EAVE / OVERHANG LINES (軒先線 破線) ====== -->
+          <rect x="82" y="37" width="511" height="381" fill="none" stroke="#555" stroke-width="0.4" stroke-dasharray="6,3"/>
+          <!-- South extended eave (deeper overhang for 掃き出し窓) -->
+          <line x1="345" y1="418" x2="550" y2="418" stroke="#555" stroke-width="0.4" stroke-dasharray="6,3"/>
+          <!-- Balcony/deck indication -->
+          <rect x="350" y="403" width="175" height="18" fill="none" stroke="#555" stroke-width="0.5" stroke-dasharray="4,2"/>
+          <text x="437" y="414" text-anchor="middle" fill="#888" font-size="4.5" font-family="Noto Sans JP,sans-serif">ウッドデッキ</text>
+
+          <!-- ====== FOUNDATION OUTLINE (基礎 破線) ====== -->
+          <rect x="94" y="49" width="487" height="357" fill="none" stroke="#888" stroke-width="0.3" stroke-dasharray="3,3"/>
+
+          <!-- ====== OUTER WALLS (外壁 太線 + 断熱ハッチング) ====== -->
+          <rect x="97" y="52" width="481" height="351" fill="none" stroke="#222" stroke-width="2"/>
+          <rect x="103" y="58" width="469" height="339" fill="none" stroke="#222" stroke-width="1.2"/>
+          <!-- Wall fills with insulation hatching -->
+          <rect x="97" y="52" width="6" height="351" fill="url(#insul)" stroke="none"/>
+          <rect x="572" y="52" width="6" height="351" fill="url(#insul)" stroke="none"/>
+          <rect x="97" y="52" width="481" height="6" fill="url(#insul)" stroke="none"/>
+          <rect x="97" y="397" width="481" height="6" fill="url(#insul)" stroke="none"/>
+          <!-- Re-draw wall outlines over hatching -->
+          <rect x="97" y="52" width="481" height="351" fill="none" stroke="#222" stroke-width="1.8"/>
+          <rect x="103" y="58" width="469" height="339" fill="none" stroke="#222" stroke-width="1"/>
+
+          <!-- ====== INNER WALLS (内壁 + ハッチング) ====== -->
+          <!-- UB / 洗面 boundary (Y2) -->
+          <rect x="103" y="162" width="187" height="5" fill="url(#insul)"/><rect x="103" y="162" width="187" height="5" fill="none" stroke="#222" stroke-width="0.8"/>
+          <!-- 洗面 / WC-ホール boundary (Y3) -->
+          <rect x="103" y="237" width="187" height="5" fill="url(#insul)"/><rect x="103" y="237" width="187" height="5" fill="none" stroke="#222" stroke-width="0.8"/>
+          <!-- WC right wall (X2, Y2-Y3) -->
+          <rect x="192" y="162" width="5" height="80" fill="url(#insul)"/><rect x="192" y="162" width="5" height="80" fill="none" stroke="#222" stroke-width="0.8"/>
+          <!-- SIC right wall (X2, Y1-Y2) -->
+          <rect x="192" y="58" width="5" height="104" fill="url(#insul)"/><rect x="192" y="58" width="5" height="104" fill="none" stroke="#222" stroke-width="0.8"/>
+          <!-- ホール right wall (X3, Y3-Y5) -->
+          <rect x="287" y="237" width="5" height="166" fill="url(#insul)"/><rect x="287" y="237" width="5" height="166" fill="none" stroke="#222" stroke-width="0.8"/>
+          <!-- 水回り / LDK boundary (X3, Y1-Y3) -->
+          <rect x="287" y="58" width="5" height="184" fill="url(#insul)"/><rect x="287" y="58" width="5" height="184" fill="none" stroke="#222" stroke-width="0.8"/>
+          <!-- 玄関 / ホール boundary -->
+          <rect x="103" y="317" width="189" height="4" fill="url(#insul)"/><rect x="103" y="317" width="189" height="4" fill="none" stroke="#222" stroke-width="0.7"/>
+          <!-- 階段 right wall -->
+          <rect x="360" y="237" width="4" height="115" fill="url(#insul)"/><rect x="360" y="237" width="4" height="115" fill="none" stroke="#222" stroke-width="0.7"/>
+          <!-- 階段 bottom wall -->
+          <rect x="287" y="348" width="77" height="4" fill="url(#insul)"/><rect x="287" y="348" width="77" height="4" fill="none" stroke="#222" stroke-width="0.7"/>
+          <!-- Kitchen counter (対面カウンター) -->
+          <rect x="385" y="232" width="118" height="3" fill="#999" stroke="#444" stroke-width="0.6"/>
+          <!-- Counter edge detail -->
+          <line x1="385" y1="228" x2="385" y2="235" stroke="#666" stroke-width="0.4"/>
+          <line x1="503" y1="228" x2="503" y2="235" stroke="#666" stroke-width="0.4"/>
+
+          <!-- ====== WINDOWS (窓) with Schedule Labels ====== -->
+          <!-- AW-1: South LDK 掃き出し窓 (large sliding) -->
+          <rect x="360" y="397" width="160" height="6" fill="#fff"/>
+          <line x1="365" y1="398" x2="535" y2="398" stroke="#222" stroke-width="1.2"/>
+          <line x1="365" y1="402" x2="535" y2="402" stroke="#222" stroke-width="1.2"/>
+          <line x1="365" y1="398" x2="450" y2="402" stroke="#222" stroke-width="0.5"/>
+          <line x1="450" y1="398" x2="535" y2="402" stroke="#222" stroke-width="0.5"/>
+          <text x="450" y="415" text-anchor="middle" fill="#2266aa" font-size="4.5" font-family="Inter,sans-serif" font-weight="600">AW-1</text>
+          <text x="450" y="420" text-anchor="middle" fill="#666" font-size="3.5" font-family="Inter,sans-serif">W2600×H2200 SH=FL±0</text>
+
+          <!-- AW-2: South 玄関 window -->
+          <rect x="120" y="397" width="60" height="6" fill="#fff"/>
+          <line x1="122" y1="398" x2="178" y2="398" stroke="#222" stroke-width="1"/>
+          <line x1="122" y1="402" x2="178" y2="402" stroke="#222" stroke-width="1"/>
+          <line x1="122" y1="398" x2="150" y2="402" stroke="#222" stroke-width="0.4"/>
+          <line x1="150" y1="398" x2="178" y2="402" stroke="#222" stroke-width="0.4"/>
+          <text x="150" y="415" text-anchor="middle" fill="#2266aa" font-size="4.5" font-family="Inter,sans-serif" font-weight="600">AW-2</text>
+          <text x="150" y="420" text-anchor="middle" fill="#666" font-size="3.5" font-family="Inter,sans-serif">W780×H700 SH=1100</text>
+
+          <!-- AW-3: East LDK upper -->
+          <rect x="572" y="80" width="6" height="70" fill="#fff"/>
+          <line x1="573" y1="82" x2="573" y2="148" stroke="#222" stroke-width="1"/>
+          <line x1="577" y1="82" x2="577" y2="148" stroke="#222" stroke-width="1"/>
+          <line x1="573" y1="82" x2="577" y2="115" stroke="#222" stroke-width="0.4"/>
+          <line x1="573" y1="115" x2="577" y2="148" stroke="#222" stroke-width="0.4"/>
+          <text x="585" y="112" text-anchor="start" fill="#2266aa" font-size="4" font-family="Inter,sans-serif" font-weight="600">AW-3</text>
+          <text x="585" y="117" text-anchor="start" fill="#666" font-size="3.5" font-family="Inter,sans-serif">SH=800</text>
+
+          <!-- AW-4: East LDK lower -->
+          <rect x="572" y="275" width="6" height="70" fill="#fff"/>
+          <line x1="573" y1="277" x2="573" y2="343" stroke="#222" stroke-width="1"/>
+          <line x1="577" y1="277" x2="577" y2="343" stroke="#222" stroke-width="1"/>
+          <line x1="573" y1="277" x2="577" y2="310" stroke="#222" stroke-width="0.4"/>
+          <line x1="573" y1="310" x2="577" y2="343" stroke="#222" stroke-width="0.4"/>
+          <text x="585" y="308" text-anchor="start" fill="#2266aa" font-size="4" font-family="Inter,sans-serif" font-weight="600">AW-4</text>
+          <text x="585" y="313" text-anchor="start" fill="#666" font-size="3.5" font-family="Inter,sans-serif">SH=800</text>
+
+          <!-- AW-5: North UB window (FIX) -->
+          <rect x="120" y="52" width="50" height="6" fill="#fff"/>
+          <line x1="122" y1="55" x2="168" y2="55" stroke="#222" stroke-width="1.2"/>
+          <text x="145" y="45" text-anchor="middle" fill="#2266aa" font-size="4" font-family="Inter,sans-serif" font-weight="600">AW-5 FIX</text>
+          <text x="145" y="49" text-anchor="middle" fill="#666" font-size="3.5" font-family="Inter,sans-serif">W640×H400 SH=1600</text>
+
+          <!-- AW-6: North LDK FIX -->
+          <rect x="370" y="52" width="90" height="6" fill="#fff"/>
+          <line x1="372" y1="55" x2="458" y2="55" stroke="#222" stroke-width="1.2"/>
+          <text x="415" y="45" text-anchor="middle" fill="#2266aa" font-size="4" font-family="Inter,sans-serif" font-weight="600">AW-6 FIX</text>
+          <text x="415" y="49" text-anchor="middle" fill="#666" font-size="3.5" font-family="Inter,sans-serif">W1620×H500 SH=1800</text>
+
+          <!-- AW-7: North additional window -->
+          <rect x="490" y="52" width="60" height="6" fill="#fff"/>
+          <line x1="492" y1="53.5" x2="548" y2="53.5" stroke="#222" stroke-width="0.8"/>
+          <line x1="492" y1="56.5" x2="548" y2="56.5" stroke="#222" stroke-width="0.8"/>
+          <line x1="492" y1="53.5" x2="520" y2="56.5" stroke="#222" stroke-width="0.3"/>
+          <line x1="520" y1="53.5" x2="548" y2="56.5" stroke="#222" stroke-width="0.3"/>
+          <text x="520" y="45" text-anchor="middle" fill="#2266aa" font-size="4" font-family="Inter,sans-serif" font-weight="600">AW-7</text>
+
+          <!-- AW-8: West UB window -->
+          <rect x="97" y="80" width="6" height="55" fill="#fff"/>
+          <line x1="100" y1="82" x2="100" y2="133" stroke="#222" stroke-width="1.2"/>
+          <text x="88" y="108" text-anchor="end" fill="#2266aa" font-size="4" font-family="Inter,sans-serif" font-weight="600">AW-8</text>
+
+          <!-- AW-9: West 洗面 small window -->
+          <rect x="97" y="185" width="6" height="35" fill="#fff"/>
+          <line x1="100" y1="187" x2="100" y2="218" stroke="#222" stroke-width="0.8"/>
+          <text x="88" y="203" text-anchor="end" fill="#2266aa" font-size="4" font-family="Inter,sans-serif" font-weight="600">AW-9</text>
+
+          <!-- ====== DOORS (戸) with Schedule Labels ====== -->
+          <!-- SD-1: 玄関ドア (entrance - double swing) -->
+          <rect x="200" y="397" width="50" height="6" fill="#fff"/>
+          <line x1="205" y1="397" x2="205" y2="365" stroke="#222" stroke-width="0.8"/>
+          <path d="M 205,365 A 32,32 0 0,1 237,397" fill="none" stroke="#222" stroke-width="0.5" stroke-dasharray="2,1"/>
+          <line x1="245" y1="397" x2="245" y2="370" stroke="#222" stroke-width="0.8"/>
+          <path d="M 245,370 A 27,27 0 0,0 218,397" fill="none" stroke="#222" stroke-width="0.5" stroke-dasharray="2,1"/>
+          <text x="225" y="358" text-anchor="middle" fill="#2266aa" font-size="4.5" font-family="Inter,sans-serif" font-weight="600">SD-1</text>
+
+          <!-- WD-1: LDK-ホール 引き戸 -->
+          <rect x="287" y="330" width="5" height="50" fill="#fff"/>
+          <line x1="289" y1="332" x2="289" y2="375" stroke="#222" stroke-width="0.8"/>
+          <line x1="289" y1="375" x2="285" y2="371" stroke="#222" stroke-width="0.5"/>
+          <text x="280" y="355" text-anchor="end" fill="#2266aa" font-size="4" font-family="Inter,sans-serif" font-weight="600">WD-1</text>
+
+          <!-- WD-2: WC door -->
+          <rect x="192" y="200" width="5" height="30" fill="#fff"/>
+          <line x1="197" y1="228" x2="225" y2="228" stroke="#222" stroke-width="0.8"/>
+          <path d="M 225,228 A 28,28 0 0,0 197,200" fill="none" stroke="#222" stroke-width="0.5" stroke-dasharray="2,1"/>
+          <text x="218" y="234" text-anchor="middle" fill="#2266aa" font-size="3.5" font-family="Inter,sans-serif" font-weight="600">WD-2</text>
+
+          <!-- WD-3: 洗面 door -->
+          <rect x="192" y="170" width="5" height="25" fill="#fff"/>
+          <line x1="197" y1="170" x2="225" y2="170" stroke="#222" stroke-width="0.8"/>
+          <path d="M 225,170 A 28,28 0 0,1 197,195" fill="none" stroke="#222" stroke-width="0.5" stroke-dasharray="2,1"/>
+          <text x="218" y="167" text-anchor="middle" fill="#2266aa" font-size="3.5" font-family="Inter,sans-serif" font-weight="600">WD-3</text>
+
+          <!-- WD-4: UB door -->
+          <rect x="192" y="90" width="5" height="25" fill="#fff"/>
+          <line x1="197" y1="115" x2="222" y2="115" stroke="#222" stroke-width="0.8"/>
+          <path d="M 222,115 A 25,25 0 0,0 197,90" fill="none" stroke="#222" stroke-width="0.5" stroke-dasharray="2,1"/>
+          <text x="215" y="122" text-anchor="middle" fill="#2266aa" font-size="3.5" font-family="Inter,sans-serif" font-weight="600">WD-4</text>
+
+          <!-- WD-5: SIC 折れ戸 -->
+          <rect x="192" y="68" width="5" height="20" fill="#fff"/>
+          <line x1="197" y1="68" x2="207" y2="78" stroke="#222" stroke-width="0.6"/>
+          <line x1="207" y1="78" x2="197" y2="88" stroke="#222" stroke-width="0.6"/>
+          <text x="212" y="75" text-anchor="start" fill="#2266aa" font-size="3.5" font-family="Inter,sans-serif" font-weight="600">WD-5</text>
+
+          <!-- WD-6: 階段横 引き戸 -->
+          <rect x="360" y="296" width="4" height="30" fill="#fff"/>
+          <line x1="364" y1="296" x2="364" y2="326" stroke="#222" stroke-width="0.8"/>
+          <line x1="364" y1="326" x2="360" y2="322" stroke="#222" stroke-width="0.5"/>
+          <text x="370" y="313" text-anchor="start" fill="#2266aa" font-size="3.5" font-family="Inter,sans-serif" font-weight="600">WD-6</text>
+
+          <!-- ====== BATHROOM FIXTURES (浴室) ====== -->
+          <rect x="110" y="65" width="75" height="50" rx="3" fill="none" stroke="#222" stroke-width="0.8"/>
+          <rect x="115" y="70" width="65" height="40" rx="8" fill="none" stroke="#222" stroke-width="0.5"/>
+          <line x1="110" y1="120" x2="185" y2="120" stroke="#222" stroke-width="0.3" stroke-dasharray="3,2"/>
+          <!-- シャワー水栓 -->
+          <circle cx="175" cy="130" r="4" fill="none" stroke="#222" stroke-width="0.5"/>
+          <circle cx="175" cy="130" r="1.5" fill="#222"/>
+          <line x1="175" y1="134" x2="175" y2="142" stroke="#222" stroke-width="0.4"/>
+          <!-- 排水口 -->
+          <circle cx="145" cy="140" r="3" fill="none" stroke="#222" stroke-width="0.4"/>
+          <line x1="142" y1="140" x2="148" y2="140" stroke="#222" stroke-width="0.3"/>
+          <line x1="145" y1="137" x2="145" y2="143" stroke="#222" stroke-width="0.3"/>
+          <!-- 浴室カウンター -->
+          <rect x="110" y="115" width="75" height="3" fill="none" stroke="#222" stroke-width="0.4"/>
+          <!-- 水栓位置 -->
+          <circle cx="130" cy="130" r="2" fill="none" stroke="#222" stroke-width="0.4"/>
+          <!-- 鏡 -->
+          <rect x="112" y="122" width="20" height="1.5" fill="#222"/>
+          <!-- 浴室乾燥機 (天井) -->
+          <rect x="135" y="90" width="20" height="15" fill="none" stroke="#222" stroke-width="0.3" stroke-dasharray="2,2"/>
+          <text x="145" y="100" text-anchor="middle" fill="#888" font-size="3.5" font-family="sans-serif">浴乾</text>
+
+          <!-- ====== 洗面脱衣 FIXTURES ====== -->
+          <!-- 洗面台 (vanity with mirror) -->
+          <rect x="105" y="168" width="38" height="20" rx="1" fill="none" stroke="#222" stroke-width="0.7"/>
+          <ellipse cx="124" cy="178" rx="12" ry="7" fill="none" stroke="#222" stroke-width="0.4"/>
+          <circle cx="124" cy="178" r="2" fill="none" stroke="#222" stroke-width="0.3"/>
+          <!-- 洗面水栓 -->
+          <circle cx="124" cy="170" r="1.5" fill="#222"/>
+          <!-- 鏡 -->
+          <line x1="107" y1="167" x2="141" y2="167" stroke="#222" stroke-width="0.8"/>
+          <!-- 洗濯機パン -->
+          <rect x="148" y="170" width="38" height="38" fill="none" stroke="#222" stroke-width="0.6"/>
+          <circle cx="167" cy="189" r="14" fill="none" stroke="#222" stroke-width="0.4"/>
+          <circle cx="167" cy="189" r="3" fill="none" stroke="#222" stroke-width="0.3"/>
+          <!-- 洗濯機 排水 -->
+          <circle cx="183" y1="205" cy="205" r="2" fill="none" stroke="#222" stroke-width="0.3"/>
+          <!-- タオル掛け -->
+          <line x1="105" y1="215" x2="105" y2="230" stroke="#222" stroke-width="0.5"/>
+          <line x1="108" y1="215" x2="108" y2="230" stroke="#222" stroke-width="0.5"/>
+          <!-- 点検口 -->
+          <rect x="155" y="218" width="15" height="15" fill="none" stroke="#222" stroke-width="0.3" stroke-dasharray="2,1"/>
+          <line x1="155" y1="218" x2="170" y2="233" stroke="#222" stroke-width="0.2"/>
+          <line x1="170" y1="218" x2="155" y2="233" stroke="#222" stroke-width="0.2"/>
+
+          <!-- ====== WC FIXTURES ====== -->
+          <rect x="215" y="185" width="25" height="15" rx="1" fill="none" stroke="#222" stroke-width="0.6"/>
+          <ellipse cx="227" cy="212" rx="12" ry="14" fill="none" stroke="#222" stroke-width="0.6"/>
+          <!-- タンク -->
+          <rect x="218" y="182" width="18" height="5" rx="2" fill="none" stroke="#222" stroke-width="0.4"/>
+          <!-- ウォシュレット操作パネル -->
+          <rect x="240" y="200" width="6" height="10" fill="none" stroke="#222" stroke-width="0.3"/>
+          <!-- 手洗い -->
+          <rect x="260" y="175" width="16" height="12" rx="2" fill="none" stroke="#222" stroke-width="0.5"/>
+          <ellipse cx="268" cy="181" rx="5" ry="3.5" fill="none" stroke="#222" stroke-width="0.3"/>
+          <circle cx="268" cy="178" r="1" fill="#222"/>
+          <!-- ペーパーホルダー -->
+          <rect x="202" y="205" width="8" height="5" fill="none" stroke="#222" stroke-width="0.3"/>
+          <!-- 排水管 -->
+          <circle cx="227" cy="220" r="2.5" fill="none" stroke="#222" stroke-width="0.3"/>
+
+          <!-- ====== KITCHEN FIXTURES (キッチン) ====== -->
+          <!-- I型キッチンカウンター -->
+          <rect x="295" y="62" width="28" height="170" rx="1" fill="none" stroke="#222" stroke-width="0.9"/>
+          <!-- シンク (detailed) -->
+          <rect x="300" y="95" width="18" height="35" rx="3" fill="none" stroke="#222" stroke-width="0.6"/>
+          <rect x="303" y="98" width="12" height="14" rx="1" fill="none" stroke="#222" stroke-width="0.3"/>
+          <rect x="303" y="115" width="12" height="12" rx="1" fill="none" stroke="#222" stroke-width="0.3"/>
+          <circle cx="309" cy="105" r="2" fill="none" stroke="#222" stroke-width="0.3"/>
+          <circle cx="309" cy="121" r="2" fill="none" stroke="#222" stroke-width="0.3"/>
+          <!-- 水栓 -->
+          <circle cx="309" cy="94" r="1.5" fill="#222"/>
+          <!-- IH コンロ (3口) -->
+          <circle cx="309" cy="148" r="8" fill="none" stroke="#222" stroke-width="0.5"/>
+          <circle cx="309" cy="167" r="8" fill="none" stroke="#222" stroke-width="0.5"/>
+          <circle cx="309" cy="184" r="5.5" fill="none" stroke="#222" stroke-width="0.4"/>
+          <text x="309" y="150" text-anchor="middle" fill="#888" font-size="3" font-family="sans-serif">IH</text>
+          <!-- レンジフード (天井 破線) -->
+          <rect x="297" y="140" width="24" height="55" fill="none" stroke="#666" stroke-width="0.4" stroke-dasharray="3,2"/>
+          <text x="309" y="200" text-anchor="middle" fill="#888" font-size="3" font-family="sans-serif">RF</text>
+          <!-- 冷蔵庫スペース -->
+          <rect x="297" y="65" width="24" height="26" fill="none" stroke="#888" stroke-width="0.5" stroke-dasharray="2,2"/>
+          <text x="309" y="80" text-anchor="middle" fill="#888" font-size="4.5" font-family="sans-serif">冷蔵庫</text>
+          <!-- カップボード (背面収納) -->
+          <rect x="295" y="195" width="28" height="35" fill="none" stroke="#222" stroke-width="0.6"/>
+          <line x1="295" y1="207" x2="323" y2="207" stroke="#222" stroke-width="0.3"/>
+          <line x1="295" y1="219" x2="323" y2="219" stroke="#222" stroke-width="0.3"/>
+          <text x="309" y="215" text-anchor="middle" fill="#888" font-size="3" font-family="sans-serif">CB</text>
+          <!-- 食洗機 -->
+          <rect x="300" y="132" width="18" height="12" fill="none" stroke="#222" stroke-width="0.4"/>
+          <text x="309" y="140" text-anchor="middle" fill="#888" font-size="3" font-family="sans-serif">DW</text>
+
+          <!-- ====== STAIRS (階段) DETAILED ====== -->
+          <line x1="295" y1="250" x2="355" y2="250" stroke="#222" stroke-width="0.5"/>
+          <line x1="295" y1="257" x2="355" y2="257" stroke="#222" stroke-width="0.5"/>
+          <line x1="295" y1="264" x2="355" y2="264" stroke="#222" stroke-width="0.5"/>
+          <line x1="295" y1="271" x2="355" y2="271" stroke="#222" stroke-width="0.5"/>
+          <line x1="295" y1="278" x2="355" y2="278" stroke="#222" stroke-width="0.5"/>
+          <line x1="295" y1="285" x2="355" y2="285" stroke="#222" stroke-width="0.5"/>
+          <line x1="295" y1="292" x2="355" y2="292" stroke="#222" stroke-width="0.5"/>
+          <line x1="295" y1="299" x2="355" y2="299" stroke="#222" stroke-width="0.5"/>
+          <line x1="295" y1="306" x2="355" y2="306" stroke="#222" stroke-width="0.5"/>
+          <line x1="295" y1="313" x2="355" y2="313" stroke="#222" stroke-width="0.5"/>
+          <line x1="295" y1="320" x2="355" y2="320" stroke="#222" stroke-width="0.5"/>
+          <line x1="295" y1="327" x2="355" y2="327" stroke="#222" stroke-width="0.5"/>
+          <line x1="295" y1="334" x2="355" y2="334" stroke="#222" stroke-width="0.5"/>
+          <line x1="295" y1="341" x2="355" y2="341" stroke="#222" stroke-width="0.5"/>
+          <!-- UP arrow -->
+          <line x1="325" y1="345" x2="325" y2="248" stroke="#222" stroke-width="0.7"/>
+          <polygon points="325,245 321,252 329,252" fill="#222"/>
+          <text x="342" y="345" fill="#222" font-size="5.5" font-family="Inter,sans-serif" font-weight="700">UP</text>
+          <text x="342" y="253" fill="#888" font-size="4.5" font-family="Inter,sans-serif">14段</text>
+          <!-- 手摺 (handrail) -->
+          <line x1="295" y1="248" x2="295" y2="348" stroke="#222" stroke-width="0.8" stroke-dasharray="5,2"/>
+          <line x1="355" y1="248" x2="355" y2="348" stroke="#222" stroke-width="0.8" stroke-dasharray="5,2"/>
+          <!-- 蹴上/踏面 注記 -->
+          <text x="296" y="345" fill="#888" font-size="3" font-family="Inter,sans-serif">T=227 R=200</text>
+          <!-- 段鼻ノンスリップ -->
+          <text x="340" y="260" fill="#666" font-size="3" font-family="sans-serif">NS</text>
+
+          <!-- ====== COLUMNS (柱) ====== -->
+          <rect x="96" y="51" width="8" height="8" fill="#444"/><rect x="96" y="159" width="8" height="8" fill="#444"/>
+          <rect x="96" y="234" width="8" height="8" fill="#444"/><rect x="96" y="314" width="8" height="8" fill="#444"/>
+          <rect x="96" y="395" width="8" height="8" fill="#444"/>
+          <rect x="189" y="51" width="8" height="8" fill="#444"/><rect x="189" y="159" width="8" height="8" fill="#444"/>
+          <rect x="189" y="234" width="8" height="8" fill="#444"/><rect x="189" y="395" width="8" height="8" fill="#444"/>
+          <rect x="284" y="51" width="8" height="8" fill="#444"/><rect x="284" y="234" width="8" height="8" fill="#444"/>
+          <rect x="284" y="314" width="8" height="8" fill="#444"/><rect x="284" y="395" width="8" height="8" fill="#444"/>
+          <rect x="379" y="51" width="8" height="8" fill="#444"/><rect x="379" y="234" width="8" height="8" fill="#444"/>
+          <rect x="379" y="395" width="8" height="8" fill="#444"/>
+          <rect x="474" y="51" width="8" height="8" fill="#444"/><rect x="474" y="395" width="8" height="8" fill="#444"/>
+          <rect x="569" y="51" width="8" height="8" fill="#444"/><rect x="569" y="159" width="8" height="8" fill="#444"/>
+          <rect x="569" y="395" width="8" height="8" fill="#444"/>
+          <!-- 間柱 (studs at mid-span) -->
+          <rect x="143" y="51" width="4" height="4" fill="none" stroke="#444" stroke-width="0.5"/>
+          <rect x="143" y="397" width="4" height="4" fill="none" stroke="#444" stroke-width="0.5"/>
+          <rect x="237" y="51" width="4" height="4" fill="none" stroke="#444" stroke-width="0.5"/>
+          <rect x="333" y="51" width="4" height="4" fill="none" stroke="#444" stroke-width="0.5"/>
+          <rect x="428" y="51" width="4" height="4" fill="none" stroke="#444" stroke-width="0.5"/>
+          <rect x="523" y="51" width="4" height="4" fill="none" stroke="#444" stroke-width="0.5"/>
+          <rect x="428" y="397" width="4" height="4" fill="none" stroke="#444" stroke-width="0.5"/>
+          <rect x="523" y="397" width="4" height="4" fill="none" stroke="#444" stroke-width="0.5"/>
+
+          <!-- ====== FURNITURE LAYOUT (家具 破線) ====== -->
+          <!-- Dining table + chairs -->
+          <rect x="400" y="80" width="70" height="45" rx="2" fill="none" stroke="#999" stroke-width="0.5" stroke-dasharray="3,2"/>
+          <circle cx="412" cy="76" r="5" fill="none" stroke="#999" stroke-width="0.4" stroke-dasharray="2,2"/>
+          <circle cx="435" cy="76" r="5" fill="none" stroke="#999" stroke-width="0.4" stroke-dasharray="2,2"/>
+          <circle cx="458" cy="76" r="5" fill="none" stroke="#999" stroke-width="0.4" stroke-dasharray="2,2"/>
+          <circle cx="412" cy="130" r="5" fill="none" stroke="#999" stroke-width="0.4" stroke-dasharray="2,2"/>
+          <circle cx="435" cy="130" r="5" fill="none" stroke="#999" stroke-width="0.4" stroke-dasharray="2,2"/>
+          <circle cx="458" cy="130" r="5" fill="none" stroke="#999" stroke-width="0.4" stroke-dasharray="2,2"/>
+          <!-- Sofa (L-shaped) -->
+          <rect x="475" y="270" width="88" height="35" rx="2" fill="none" stroke="#999" stroke-width="0.5" stroke-dasharray="3,2"/>
+          <rect x="528" y="305" width="35" height="55" rx="2" fill="none" stroke="#999" stroke-width="0.5" stroke-dasharray="3,2"/>
+          <!-- Coffee table -->
+          <rect x="490" y="315" width="32" height="22" rx="2" fill="none" stroke="#999" stroke-width="0.4" stroke-dasharray="3,2"/>
+          <!-- TV unit (east wall) -->
+          <rect x="560" y="170" width="10" height="50" fill="none" stroke="#999" stroke-width="0.4" stroke-dasharray="3,2"/>
+          <text x="555" y="197" text-anchor="end" fill="#aaa" font-size="3.5" font-family="sans-serif">TV</text>
+          <!-- 玄関 下駄箱 -->
+          <rect x="106" y="340" width="80" height="14" fill="none" stroke="#222" stroke-width="0.5"/>
+          <text x="146" y="350" text-anchor="middle" fill="#888" font-size="3.5" font-family="sans-serif">下駄箱 W1600</text>
+
+          <!-- ====== ELECTRICAL SYMBOLS (電気記号) ====== -->
+          <!-- コンセント (outlets) = circle with 2 lines -->
+          <!-- Kitchen outlets -->
+          <g transform="translate(285,80)"><circle r="2.5" fill="none" stroke="#222" stroke-width="0.5"/><line x1="-4" y1="0" x2="-2.5" y2="0" stroke="#222" stroke-width="0.4"/><line x1="2.5" y1="0" x2="4" y2="0" stroke="#222" stroke-width="0.4"/><text x="0" y="-4" text-anchor="middle" fill="#666" font-size="3" font-family="Inter">2</text></g>
+          <g transform="translate(285,140)"><circle r="2.5" fill="none" stroke="#222" stroke-width="0.5"/><line x1="-4" y1="0" x2="-2.5" y2="0" stroke="#222" stroke-width="0.4"/><line x1="2.5" y1="0" x2="4" y2="0" stroke="#222" stroke-width="0.4"/><text x="0" y="-4" text-anchor="middle" fill="#666" font-size="3" font-family="Inter">E</text></g>
+          <!-- LDK outlets -->
+          <g transform="translate(570,180)"><circle r="2.5" fill="none" stroke="#222" stroke-width="0.5"/><line x1="0" y1="-4" x2="0" y2="-2.5" stroke="#222" stroke-width="0.4"/><line x1="0" y1="2.5" x2="0" y2="4" stroke="#222" stroke-width="0.4"/><text x="5" y="1" fill="#666" font-size="3" font-family="Inter">2</text></g>
+          <g transform="translate(570,250)"><circle r="2.5" fill="none" stroke="#222" stroke-width="0.5"/><line x1="0" y1="-4" x2="0" y2="-2.5" stroke="#222" stroke-width="0.4"/><line x1="0" y1="2.5" x2="0" y2="4" stroke="#222" stroke-width="0.4"/><text x="5" y="1" fill="#666" font-size="3" font-family="Inter">TV</text></g>
+          <g transform="translate(570,360)"><circle r="2.5" fill="none" stroke="#222" stroke-width="0.5"/><line x1="0" y1="-4" x2="0" y2="-2.5" stroke="#222" stroke-width="0.4"/><line x1="0" y1="2.5" x2="0" y2="4" stroke="#222" stroke-width="0.4"/></g>
+          <g transform="translate(380,395)"><circle r="2.5" fill="none" stroke="#222" stroke-width="0.5"/><line x1="-4" y1="0" x2="-2.5" y2="0" stroke="#222" stroke-width="0.4"/><line x1="2.5" y1="0" x2="4" y2="0" stroke="#222" stroke-width="0.4"/></g>
+          <!-- 洗面 outlet -->
+          <g transform="translate(100,195)"><circle r="2.5" fill="none" stroke="#222" stroke-width="0.5"/><line x1="0" y1="-4" x2="0" y2="-2.5" stroke="#222" stroke-width="0.4"/><line x1="0" y1="2.5" x2="0" y2="4" stroke="#222" stroke-width="0.4"/><text x="5" y="1" fill="#666" font-size="3" font-family="Inter">E</text></g>
+          <!-- WC outlet -->
+          <g transform="translate(280,195)"><circle r="2.5" fill="none" stroke="#222" stroke-width="0.5"/><line x1="0" y1="-4" x2="0" y2="-2.5" stroke="#222" stroke-width="0.4"/><line x1="0" y1="2.5" x2="0" y2="4" stroke="#222" stroke-width="0.4"/></g>
+          <!-- ホール outlet -->
+          <g transform="translate(250,310)"><circle r="2.5" fill="none" stroke="#222" stroke-width="0.5"/><line x1="-4" y1="0" x2="-2.5" y2="0" stroke="#222" stroke-width="0.4"/><line x1="2.5" y1="0" x2="4" y2="0" stroke="#222" stroke-width="0.4"/></g>
+
+          <!-- スイッチ (switches) = filled dot -->
+          <circle cx="205" cy="330" r="2" fill="#222"/><text x="210" y="332" fill="#666" font-size="3.5" font-family="Inter">S</text>
+          <circle cx="295" cy="370" r="2" fill="#222"/><text x="300" y="372" fill="#666" font-size="3.5" font-family="Inter">S3</text>
+          <circle cx="370" cy="390" r="2" fill="#222"/><text x="375" y="392" fill="#666" font-size="3.5" font-family="Inter">S</text>
+          <circle cx="370" cy="250" r="2" fill="#222"/><text x="375" y="252" fill="#666" font-size="3.5" font-family="Inter">S3</text>
+          <circle cx="200" cy="170" r="2" fill="#222"/><text x="205" y="172" fill="#666" font-size="3.5" font-family="Inter">S</text>
+          <circle cx="200" cy="228" r="2" fill="#222"/><text x="203" y="240" fill="#666" font-size="3.5" font-family="Inter">S</text>
+          <!-- Switch-to-light connection lines -->
+          <line x1="207" y1="330" x2="230" y2="330" stroke="#666" stroke-width="0.3" stroke-dasharray="2,1"/>
+          <line x1="372" y1="390" x2="400" y2="390" stroke="#666" stroke-width="0.3" stroke-dasharray="2,1"/>
+
+          <!-- 天井照明 (ceiling lights) = circle with cross -->
+          <!-- LDK main lights -->
+          <g transform="translate(435,110)"><circle r="5" fill="none" stroke="#222" stroke-width="0.5"/><line x1="-3.5" y1="0" x2="3.5" y2="0" stroke="#222" stroke-width="0.4"/><line x1="0" y1="-3.5" x2="0" y2="3.5" stroke="#222" stroke-width="0.4"/></g>
+          <g transform="translate(500,110)"><circle r="5" fill="none" stroke="#222" stroke-width="0.5"/><line x1="-3.5" y1="0" x2="3.5" y2="0" stroke="#222" stroke-width="0.4"/><line x1="0" y1="-3.5" x2="0" y2="3.5" stroke="#222" stroke-width="0.4"/></g>
+          <g transform="translate(467,320)"><circle r="5" fill="none" stroke="#222" stroke-width="0.5"/><line x1="-3.5" y1="0" x2="3.5" y2="0" stroke="#222" stroke-width="0.4"/><line x1="0" y1="-3.5" x2="0" y2="3.5" stroke="#222" stroke-width="0.4"/></g>
+          <!-- Kitchen light -->
+          <g transform="translate(309,110)"><circle r="4" fill="none" stroke="#222" stroke-width="0.5"/><line x1="-2.8" y1="0" x2="2.8" y2="0" stroke="#222" stroke-width="0.4"/><line x1="0" y1="-2.8" x2="0" y2="2.8" stroke="#222" stroke-width="0.4"/></g>
+          <!-- ダウンライト (small circles with dot) -->
+          <circle cx="420" cy="200" r="2.5" fill="none" stroke="#222" stroke-width="0.4"/><circle cx="420" cy="200" r="0.8" fill="#222"/>
+          <circle cx="460" cy="200" r="2.5" fill="none" stroke="#222" stroke-width="0.4"/><circle cx="460" cy="200" r="0.8" fill="#222"/>
+          <circle cx="500" cy="200" r="2.5" fill="none" stroke="#222" stroke-width="0.4"/><circle cx="500" cy="200" r="0.8" fill="#222"/>
+          <circle cx="540" cy="200" r="2.5" fill="none" stroke="#222" stroke-width="0.4"/><circle cx="540" cy="200" r="0.8" fill="#222"/>
+          <!-- ホール light -->
+          <g transform="translate(230,285)"><circle r="4" fill="none" stroke="#222" stroke-width="0.5"/><line x1="-2.8" y1="0" x2="2.8" y2="0" stroke="#222" stroke-width="0.4"/><line x1="0" y1="-2.8" x2="0" y2="2.8" stroke="#222" stroke-width="0.4"/></g>
+          <!-- 玄関 light -->
+          <g transform="translate(170,370)"><circle r="4" fill="none" stroke="#222" stroke-width="0.5"/><line x1="-2.8" y1="0" x2="2.8" y2="0" stroke="#222" stroke-width="0.4"/><line x1="0" y1="-2.8" x2="0" y2="2.8" stroke="#222" stroke-width="0.4"/></g>
+          <!-- WC light -->
+          <g transform="translate(242,190)"><circle r="3" fill="none" stroke="#222" stroke-width="0.4"/><line x1="-2" y1="0" x2="2" y2="0" stroke="#222" stroke-width="0.3"/><line x1="0" y1="-2" x2="0" y2="2" stroke="#222" stroke-width="0.3"/></g>
+          <!-- 洗面 light -->
+          <g transform="translate(148,195)"><circle r="3" fill="none" stroke="#222" stroke-width="0.4"/><line x1="-2" y1="0" x2="2" y2="0" stroke="#222" stroke-width="0.3"/><line x1="0" y1="-2" x2="0" y2="2" stroke="#222" stroke-width="0.3"/></g>
+          <!-- 階段 light -->
+          <g transform="translate(325,290)"><circle r="3" fill="none" stroke="#222" stroke-width="0.4"/><line x1="-2" y1="0" x2="2" y2="0" stroke="#222" stroke-width="0.3"/><line x1="0" y1="-2" x2="0" y2="2" stroke="#222" stroke-width="0.3"/></g>
+          <!-- 玄関ポーチ light -->
+          <g transform="translate(225,410)"><circle r="3" fill="none" stroke="#222" stroke-width="0.4"/><line x1="-2" y1="0" x2="2" y2="0" stroke="#222" stroke-width="0.3"/><line x1="0" y1="-2" x2="0" y2="2" stroke="#222" stroke-width="0.3"/></g>
+
+          <!-- ====== EQUIPMENT (設備) ====== -->
+          <!-- 分電盤 -->
+          <rect x="250" y="245" width="12" height="16" fill="none" stroke="#222" stroke-width="0.6"/>
+          <line x1="250" y1="253" x2="262" y2="253" stroke="#222" stroke-width="0.3"/>
+          <text x="256" y="250" text-anchor="middle" fill="#222" font-size="3.5" font-family="Inter" font-weight="600">H</text>
+          <text x="256" y="259" text-anchor="middle" fill="#888" font-size="3" font-family="sans-serif">分電盤</text>
+          <!-- インターホン親機 -->
+          <rect x="270" y="310" width="8" height="10" fill="none" stroke="#222" stroke-width="0.4"/>
+          <text x="274" y="317" text-anchor="middle" fill="#888" font-size="3" font-family="Inter">IP</text>
+          <!-- 給湯器 (outside wall) -->
+          <rect x="82" y="140" width="12" height="18" fill="none" stroke="#222" stroke-width="0.5"/>
+          <text x="88" y="150" text-anchor="middle" fill="#222" font-size="3.5" font-family="Inter" font-weight="600">B</text>
+          <text x="88" y="155" text-anchor="middle" fill="#888" font-size="3" font-family="sans-serif">給湯</text>
+          <!-- 24h換気 吸気口 -->
+          <circle cx="530" cy="65" r="4" fill="none" stroke="#222" stroke-width="0.4"/>
+          <line x1="526" y1="65" x2="534" y2="65" stroke="#222" stroke-width="0.3"/>
+          <line x1="530" y1="61" x2="530" y2="69" stroke="#222" stroke-width="0.3"/>
+          <text x="530" y="57" text-anchor="middle" fill="#888" font-size="3" font-family="sans-serif">SA</text>
+          <circle cx="148" y1="253" cy="253" r="4" fill="none" stroke="#222" stroke-width="0.4"/>
+          <text x="148" y="260" text-anchor="middle" fill="#888" font-size="3" font-family="sans-serif">EA</text>
+          <!-- 火災報知器 -->
+          <g transform="translate(435,65)"><polygon points="0,-3.5 3,2 -3,2" fill="none" stroke="#c00" stroke-width="0.5"/><text x="0" y="1" text-anchor="middle" fill="#c00" font-size="3" font-family="Inter" font-weight="600">F</text></g>
+          <g transform="translate(230,330)"><polygon points="0,-3.5 3,2 -3,2" fill="none" stroke="#c00" stroke-width="0.5"/><text x="0" y="1" text-anchor="middle" fill="#c00" font-size="3" font-family="Inter" font-weight="600">F</text></g>
+          <g transform="translate(170,350)"><polygon points="0,-3.5 3,2 -3,2" fill="none" stroke="#c00" stroke-width="0.5"/><text x="0" y="1" text-anchor="middle" fill="#c00" font-size="3" font-family="Inter" font-weight="600">F</text></g>
+          <!-- エアコン位置 -->
+          <rect x="365" y="58" width="16" height="4" fill="none" stroke="#222" stroke-width="0.5"/>
+          <text x="373" y="70" text-anchor="middle" fill="#888" font-size="3" font-family="sans-serif">AC</text>
+          <rect x="475" y="395" width="16" height="4" fill="none" stroke="#222" stroke-width="0.5"/>
+          <text x="483" y="390" text-anchor="middle" fill="#888" font-size="3" font-family="sans-serif">AC</text>
+          <!-- 竪樋 (downspouts) -->
+          <circle cx="90" cy="52" r="3" fill="none" stroke="#222" stroke-width="0.5"/><circle cx="90" cy="52" r="1" fill="#222"/>
+          <circle cx="90" cy="400" r="3" fill="none" stroke="#222" stroke-width="0.5"/><circle cx="90" cy="400" r="1" fill="#222"/>
+          <circle cx="578" cy="52" r="3" fill="none" stroke="#222" stroke-width="0.5"/><circle cx="578" cy="52" r="1" fill="#222"/>
+          <circle cx="578" cy="400" r="3" fill="none" stroke="#222" stroke-width="0.5"/><circle cx="578" cy="400" r="1" fill="#222"/>
+          <text x="90" y="48" text-anchor="middle" fill="#888" font-size="3" font-family="Inter">DP</text>
+
+          <!-- ====== FLOOR FINISH NOTATIONS (床仕上げ) ====== -->
+          <text x="145" y="155" text-anchor="middle" fill="#666" font-size="4" font-family="Noto Sans JP,sans-serif">タイル</text>
+          <text x="148" y="225" text-anchor="middle" fill="#666" font-size="4" font-family="Noto Sans JP,sans-serif">CF</text>
+          <text x="242" y="225" text-anchor="middle" fill="#666" font-size="4" font-family="Noto Sans JP,sans-serif">CF</text>
+          <text x="195" y="385" text-anchor="middle" fill="#666" font-size="4" font-family="Noto Sans JP,sans-serif">タイル</text>
+          <text x="195" y="305" text-anchor="middle" fill="#666" font-size="4" font-family="Noto Sans JP,sans-serif">フローリング</text>
+          <text x="460" y="185" text-anchor="middle" fill="#666" font-size="4" font-family="Noto Sans JP,sans-serif">フローリング</text>
+          <text x="460" y="380" text-anchor="middle" fill="#666" font-size="4" font-family="Noto Sans JP,sans-serif">フローリング</text>
+
+          <!-- ====== ROOM LABELS + AREAS ====== -->
+          <text x="145" y="95" text-anchor="middle" fill="#333" font-size="8" font-family="Noto Sans JP,sans-serif" font-weight="600">浴室</text>
+          <text x="145" y="105" text-anchor="middle" fill="#888" font-size="5.5" font-family="Inter,sans-serif">UB-1616</text>
+          <text x="145" y="113" text-anchor="middle" fill="#888" font-size="5" font-family="Inter,sans-serif">3.31㎡</text>
+          <text x="145" y="145" text-anchor="middle" fill="#666" font-size="4" font-family="Inter,sans-serif">CH=2,200</text>
+
+          <text x="130" y="200" text-anchor="middle" fill="#333" font-size="7" font-family="Noto Sans JP,sans-serif" font-weight="600">洗面脱衣室</text>
+          <text x="130" y="210" text-anchor="middle" fill="#888" font-size="5" font-family="Inter,sans-serif">3.31㎡</text>
+          <text x="130" y="218" text-anchor="middle" fill="#666" font-size="4" font-family="Inter,sans-serif">CH=2,400</text>
+
+          <text x="248" y="200" text-anchor="middle" fill="#333" font-size="8" font-family="Noto Sans JP,sans-serif" font-weight="600">WC</text>
+          <text x="248" y="210" text-anchor="middle" fill="#888" font-size="5" font-family="Inter,sans-serif">1.66㎡</text>
+
+          <text x="148" y="275" text-anchor="middle" fill="#333" font-size="7" font-family="Noto Sans JP,sans-serif" font-weight="600">SIC</text>
+          <text x="148" y="285" text-anchor="middle" fill="#888" font-size="5" font-family="Inter,sans-serif">1.66㎡</text>
+
+          <text x="195" y="360" text-anchor="middle" fill="#333" font-size="8" font-family="Noto Sans JP,sans-serif" font-weight="600">玄関</text>
+          <text x="195" y="373" text-anchor="middle" fill="#888" font-size="5" font-family="Inter,sans-serif">3.31㎡</text>
+          <text x="195" y="393" text-anchor="middle" fill="#666" font-size="3.5" font-family="Inter,sans-serif">FL-150 タタキ</text>
+
+          <text x="230" y="267" text-anchor="middle" fill="#333" font-size="7" font-family="Noto Sans JP,sans-serif" font-weight="600">ホール</text>
+          <text x="230" y="277" text-anchor="middle" fill="#888" font-size="5" font-family="Inter,sans-serif">5.00㎡</text>
+          <text x="230" y="295" text-anchor="middle" fill="#666" font-size="4" font-family="Inter,sans-serif">CH=2,400</text>
+
+          <!-- LDK label -->
+          <text x="467" y="145" text-anchor="middle" fill="#333" font-size="12" font-family="Noto Sans JP,sans-serif" font-weight="700">LDK</text>
+          <text x="467" y="160" text-anchor="middle" fill="#888" font-size="6.5" font-family="Inter,sans-serif">28.00㎡（16.9畳）</text>
+          <text x="467" y="170" text-anchor="middle" fill="#666" font-size="4" font-family="Inter,sans-serif">CH=2,500</text>
+          <text x="467" y="98" text-anchor="middle" fill="#999" font-size="5.5" font-family="Noto Sans JP,sans-serif">Dining</text>
+          <text x="467" y="300" text-anchor="middle" fill="#999" font-size="5.5" font-family="Noto Sans JP,sans-serif">Living</text>
+          <text x="310" y="120" text-anchor="middle" fill="#999" font-size="5" font-family="Noto Sans JP,sans-serif" writing-mode="tb">Kitchen</text>
+          <text x="325" y="295" text-anchor="middle" fill="#333" font-size="6.5" font-family="Noto Sans JP,sans-serif" font-weight="600">階段</text>
+
+          <!-- ====== FL / CH / SH ANNOTATIONS ====== -->
+          <text x="380" y="388" fill="#666" font-size="4.5" font-family="Inter,sans-serif">FL±0 CH=2,500</text>
+          <text x="115" y="158" fill="#666" font-size="4" font-family="Inter,sans-serif">FL+50 防水</text>
+          <text x="260" y="168" fill="#666" font-size="3.5" font-family="Inter,sans-serif">CH=2,400</text>
+
+          <!-- ====== INTERIOR DIMENSION LINES (内部寸法) ====== -->
+          <!-- UB width -->
+          <line x1="108" y1="157" x2="188" y2="157" stroke="#c00" stroke-width="0.3"/>
+          <line x1="108" y1="155" x2="108" y2="159" stroke="#c00" stroke-width="0.3"/>
+          <line x1="188" y1="155" x2="188" y2="159" stroke="#c00" stroke-width="0.3"/>
+          <text x="148" y="156" text-anchor="middle" fill="#c00" font-size="4" font-family="Inter,sans-serif">1,820</text>
+          <!-- UB height -->
+          <line x1="188" y1="63" x2="188" y2="157" stroke="#c00" stroke-width="0.25"/>
+          <text x="186" y="110" text-anchor="end" fill="#c00" font-size="4" font-family="Inter,sans-serif" transform="rotate(-90,186,110)">2,100</text>
+          <!-- 洗面 width -->
+          <line x1="108" y1="232" x2="188" y2="232" stroke="#c00" stroke-width="0.3"/>
+          <text x="148" y="231" text-anchor="middle" fill="#c00" font-size="4" font-family="Inter,sans-serif">1,820</text>
+          <!-- WC width -->
+          <line x1="200" y1="232" x2="282" y2="232" stroke="#c00" stroke-width="0.3"/>
+          <text x="241" y="231" text-anchor="middle" fill="#c00" font-size="4" font-family="Inter,sans-serif">1,820</text>
+          <!-- 玄関-ホール width -->
+          <line x1="108" y1="312" x2="282" y2="312" stroke="#c00" stroke-width="0.3"/>
+          <text x="195" y="311" text-anchor="middle" fill="#c00" font-size="4" font-family="Inter,sans-serif">3,640</text>
+          <!-- LDK width -->
+          <line x1="297" y1="392" x2="567" y2="392" stroke="#c00" stroke-width="0.3"/>
+          <line x1="297" y1="390" x2="297" y2="394" stroke="#c00" stroke-width="0.3"/>
+          <line x1="567" y1="390" x2="567" y2="394" stroke="#c00" stroke-width="0.3"/>
+          <text x="432" y="391" text-anchor="middle" fill="#c00" font-size="4" font-family="Inter,sans-serif">5,460</text>
+          <!-- LDK height -->
+          <line x1="567" y1="63" x2="567" y2="392" stroke="#c00" stroke-width="0.25"/>
+          <text x="565" y="228" text-anchor="end" fill="#c00" font-size="4" font-family="Inter,sans-serif" transform="rotate(-90,565,228)">6,370</text>
+          <!-- Kitchen depth -->
+          <line x1="330" y1="68" x2="330" y2="227" stroke="#c00" stroke-width="0.2"/>
+          <text x="332" y="148" fill="#c00" font-size="3.5" font-family="Inter,sans-serif" transform="rotate(-90,332,148)">2,600</text>
+          <!-- 階段 width -->
+          <line x1="297" y1="244" x2="355" y2="244" stroke="#c00" stroke-width="0.25"/>
+          <text x="326" y="243" text-anchor="middle" fill="#c00" font-size="3.5" font-family="Inter,sans-serif">910</text>
+
+          <!-- ====== EXTERIOR DIMENSION LINES ====== -->
+          <!-- Top overall dimension -->
+          <line x1="100" y1="32" x2="575" y2="32" stroke="#c00" stroke-width="0.5"/>
+          <line x1="100" y1="29" x2="100" y2="35" stroke="#c00" stroke-width="0.5"/>
+          <line x1="575" y1="29" x2="575" y2="35" stroke="#c00" stroke-width="0.5"/>
+          <text x="337" y="30" text-anchor="middle" fill="#c00" font-size="5.5" font-family="Inter,sans-serif" font-weight="600">9,100</text>
+          <!-- Top segment dimensions -->
+          <line x1="100" y1="39" x2="195" y2="39" stroke="#c00" stroke-width="0.35"/>
+          <line x1="100" y1="37" x2="100" y2="41" stroke="#c00" stroke-width="0.3"/>
+          <line x1="195" y1="37" x2="195" y2="41" stroke="#c00" stroke-width="0.3"/>
+          <text x="147" y="38" text-anchor="middle" fill="#c00" font-size="4.5" font-family="Inter,sans-serif">1,820</text>
+          <line x1="195" y1="39" x2="290" y2="39" stroke="#c00" stroke-width="0.35"/>
+          <line x1="290" y1="37" x2="290" y2="41" stroke="#c00" stroke-width="0.3"/>
+          <text x="242" y="38" text-anchor="middle" fill="#c00" font-size="4.5" font-family="Inter,sans-serif">1,820</text>
+          <line x1="290" y1="39" x2="385" y2="39" stroke="#c00" stroke-width="0.35"/>
+          <line x1="385" y1="37" x2="385" y2="41" stroke="#c00" stroke-width="0.3"/>
+          <text x="337" y="45" text-anchor="middle" fill="#c00" font-size="4.5" font-family="Inter,sans-serif">1,820</text>
+          <line x1="385" y1="39" x2="480" y2="39" stroke="#c00" stroke-width="0.35"/>
+          <line x1="480" y1="37" x2="480" y2="41" stroke="#c00" stroke-width="0.3"/>
+          <text x="432" y="38" text-anchor="middle" fill="#c00" font-size="4.5" font-family="Inter,sans-serif">1,820</text>
+          <line x1="480" y1="39" x2="575" y2="39" stroke="#c00" stroke-width="0.35"/>
+          <line x1="575" y1="37" x2="575" y2="41" stroke="#c00" stroke-width="0.3"/>
+          <text x="527" y="38" text-anchor="middle" fill="#c00" font-size="4.5" font-family="Inter,sans-serif">1,820</text>
+          <!-- Right side overall -->
+          <line x1="610" y1="55" x2="610" y2="400" stroke="#c00" stroke-width="0.5"/>
+          <line x1="607" y1="55" x2="613" y2="55" stroke="#c00" stroke-width="0.5"/>
+          <line x1="607" y1="400" x2="613" y2="400" stroke="#c00" stroke-width="0.5"/>
+          <text x="626" y="230" text-anchor="middle" fill="#c00" font-size="5.5" font-family="Inter,sans-serif" font-weight="600" transform="rotate(90,626,230)">6,370</text>
+          <!-- Right segment dims -->
+          <line x1="600" y1="55" x2="600" y2="165" stroke="#c00" stroke-width="0.35"/>
+          <line x1="598" y1="55" x2="602" y2="55" stroke="#c00" stroke-width="0.3"/>
+          <line x1="598" y1="165" x2="602" y2="165" stroke="#c00" stroke-width="0.3"/>
+          <text x="616" y="113" text-anchor="middle" fill="#c00" font-size="4.5" font-family="Inter,sans-serif" transform="rotate(90,616,113)">2,100</text>
+          <line x1="600" y1="165" x2="600" y2="240" stroke="#c00" stroke-width="0.35"/>
+          <line x1="598" y1="240" x2="602" y2="240" stroke="#c00" stroke-width="0.3"/>
+          <text x="616" y="205" text-anchor="middle" fill="#c00" font-size="4.5" font-family="Inter,sans-serif" transform="rotate(90,616,205)">1,365</text>
+          <line x1="600" y1="240" x2="600" y2="320" stroke="#c00" stroke-width="0.35"/>
+          <line x1="598" y1="320" x2="602" y2="320" stroke="#c00" stroke-width="0.3"/>
+          <text x="616" y="283" text-anchor="middle" fill="#c00" font-size="4.5" font-family="Inter,sans-serif" transform="rotate(90,616,283)">1,545</text>
+          <line x1="600" y1="320" x2="600" y2="400" stroke="#c00" stroke-width="0.35"/>
+          <line x1="598" y1="400" x2="602" y2="400" stroke="#c00" stroke-width="0.3"/>
+          <text x="616" y="363" text-anchor="middle" fill="#c00" font-size="4.5" font-family="Inter,sans-serif" transform="rotate(90,616,363)">1,360</text>
+
+          <!-- ====== SECTION CUT LINES (断面マーク) ====== -->
+          <!-- A-A' Section (horizontal cut at Y3=240) -->
+          <line x1="75" y1="240" x2="95" y2="240" stroke="#333" stroke-width="1.2"/>
+          <line x1="580" y1="240" x2="598" y2="240" stroke="#333" stroke-width="1.2"/>
+          <circle cx="75" cy="240" r="7" fill="#fff" stroke="#333" stroke-width="0.8"/>
+          <text x="75" y="243" text-anchor="middle" fill="#333" font-size="6" font-family="Inter,sans-serif" font-weight="700">A</text>
+          <line x1="82" y1="240" x2="85" y2="236" stroke="#333" stroke-width="0.8"/>
+          <circle cx="598" cy="240" r="7" fill="#fff" stroke="#333" stroke-width="0.8"/>
+          <text x="598" y="243" text-anchor="middle" fill="#333" font-size="6" font-family="Inter,sans-serif" font-weight="700">A'</text>
+          <line x1="591" y1="240" x2="594" y2="244" stroke="#333" stroke-width="0.8"/>
+
+          <!-- B-B' Section (vertical cut at X4=385) -->
+          <line x1="385" y1="27" x2="385" y2="48" stroke="#333" stroke-width="1.2"/>
+          <line x1="385" y1="405" x2="385" y2="425" stroke="#333" stroke-width="1.2"/>
+          <circle cx="385" cy="425" r="7" fill="#fff" stroke="#333" stroke-width="0.8"/>
+          <text x="385" y="428" text-anchor="middle" fill="#333" font-size="6" font-family="Inter,sans-serif" font-weight="700">B</text>
+          <line x1="385" y1="418" x2="381" y2="421" stroke="#333" stroke-width="0.8"/>
+          <circle cx="385" cy="27" r="7" fill="#fff" stroke="#333" stroke-width="0.8"/>
+          <text x="385" y="30" text-anchor="middle" fill="#333" font-size="6" font-family="Inter,sans-serif" font-weight="700">B'</text>
+          <line x1="385" y1="34" x2="389" y2="31" stroke="#333" stroke-width="0.8"/>
+
+          <!-- ====== DETAIL CALLOUTS (詳細マーク) ====== -->
+          <!-- Detail 1: 浴室防水 -->
+          <circle cx="115" cy="157" r="5" fill="#fff" stroke="#333" stroke-width="0.6"/>
+          <text x="115" y="155" text-anchor="middle" fill="#333" font-size="4" font-family="Inter,sans-serif" font-weight="700">1</text>
+          <line x1="115" y1="160" x2="115" y2="162" stroke="#333" stroke-width="0.8"/>
+          <text x="115" y="160" text-anchor="middle" fill="#888" font-size="3" font-family="Inter">S3</text>
+
+          <!-- Detail 2: 玄関框 -->
+          <circle cx="175" cy="320" r="5" fill="#fff" stroke="#333" stroke-width="0.6"/>
+          <text x="175" y="318" text-anchor="middle" fill="#333" font-size="4" font-family="Inter,sans-serif" font-weight="700">2</text>
+          <line x1="175" y1="317" x2="175" y2="325" stroke="#333" stroke-width="0.3"/>
+          <text x="175" y="323" text-anchor="middle" fill="#888" font-size="3" font-family="Inter">S4</text>
+
+          <!-- Detail 3: カウンター -->
+          <circle cx="410" cy="232" r="5" fill="#fff" stroke="#333" stroke-width="0.6"/>
+          <text x="410" y="230" text-anchor="middle" fill="#333" font-size="4" font-family="Inter,sans-serif" font-weight="700">3</text>
+          <text x="410" y="235" text-anchor="middle" fill="#888" font-size="3" font-family="Inter">S5</text>
+
+          <!-- Detail 4: 階段詳細 -->
+          <circle cx="350" cy="250" r="5" fill="#fff" stroke="#333" stroke-width="0.6"/>
+          <text x="350" y="248" text-anchor="middle" fill="#333" font-size="4" font-family="Inter,sans-serif" font-weight="700">4</text>
+          <text x="350" y="253" text-anchor="middle" fill="#888" font-size="3" font-family="Inter">S6</text>
+
+          <!-- ====== PLUMBING LINES (給排水 一点鎖線) ====== -->
+          <!-- 給水管 (blue dash-dot) -->
+          <line x1="88" y1="152" x2="103" y2="152" stroke="#0066cc" stroke-width="0.4" stroke-dasharray="4,2,1,2"/>
+          <line x1="103" y1="152" x2="103" y2="178" stroke="#0066cc" stroke-width="0.4" stroke-dasharray="4,2,1,2"/>
+          <line x1="103" y1="178" x2="124" y2="178" stroke="#0066cc" stroke-width="0.4" stroke-dasharray="4,2,1,2"/>
+          <!-- Kitchen water supply -->
+          <line x1="295" y1="115" x2="285" y2="115" stroke="#0066cc" stroke-width="0.35" stroke-dasharray="4,2,1,2"/>
+          <line x1="285" y1="115" x2="285" y2="55" stroke="#0066cc" stroke-width="0.35" stroke-dasharray="4,2,1,2"/>
+          <!-- 排水管 (gray) -->
+          <line x1="145" y1="143" x2="145" y2="165" stroke="#888" stroke-width="0.5" stroke-dasharray="3,1.5"/>
+          <line x1="145" y1="165" x2="100" y2="165" stroke="#888" stroke-width="0.5" stroke-dasharray="3,1.5"/>
+          <line x1="227" y1="223" x2="227" y2="240" stroke="#888" stroke-width="0.5" stroke-dasharray="3,1.5"/>
+          <line x1="309" y1="130" x2="290" y2="130" stroke="#888" stroke-width="0.4" stroke-dasharray="3,1.5"/>
+          <!-- Water meter -->
+          <text x="88" y="163" text-anchor="middle" fill="#0066cc" font-size="3.5" font-family="Inter" font-weight="600">WM</text>
+
+          <!-- ====== NORTH ARROW ====== -->
+          <g transform="translate(680,60)">
+            <line x1="0" y1="30" x2="0" y2="0" stroke="#222" stroke-width="1.2"/>
+            <polygon points="0,-3 -5,7 5,7" fill="#222"/>
+            <text x="0" y="-6" text-anchor="middle" fill="#222" font-size="9" font-family="Inter,sans-serif" font-weight="700">N</text>
+          </g>
+
+          <!-- ====== TITLE BLOCK ====== -->
+          <rect x="500" y="460" width="220" height="80" fill="#fff" stroke="#333" stroke-width="1"/>
+          <line x1="500" y1="476" x2="720" y2="476" stroke="#333" stroke-width="0.5"/>
+          <line x1="500" y1="492" x2="720" y2="492" stroke="#333" stroke-width="0.5"/>
+          <line x1="500" y1="508" x2="720" y2="508" stroke="#333" stroke-width="0.5"/>
+          <line x1="500" y1="524" x2="720" y2="524" stroke="#333" stroke-width="0.5"/>
+          <line x1="580" y1="476" x2="580" y2="540" stroke="#333" stroke-width="0.5"/>
+          <line x1="650" y1="476" x2="650" y2="540" stroke="#333" stroke-width="0.5"/>
+          <text x="610" y="471" text-anchor="middle" fill="#333" font-size="8" font-family="Noto Sans JP,sans-serif" font-weight="700">新築工事 1階平面図</text>
+          <text x="510" y="487" fill="#555" font-size="5" font-family="Inter,sans-serif">図面名称</text><text x="590" y="487" fill="#333" font-size="5" font-family="Noto Sans JP,sans-serif">1階平面図</text><text x="660" y="487" fill="#555" font-size="5" font-family="Inter,sans-serif">図面No.</text><text x="690" y="487" fill="#333" font-size="5" font-family="Inter">A-03</text>
+          <text x="510" y="503" fill="#555" font-size="5" font-family="Inter,sans-serif">縮尺</text><text x="590" y="503" fill="#333" font-size="5" font-family="Inter,sans-serif">S=1:100</text><text x="660" y="503" fill="#555" font-size="5" font-family="Inter">日付</text><text x="690" y="503" fill="#333" font-size="5" font-family="Inter">2025.10</text>
+          <text x="510" y="519" fill="#555" font-size="5" font-family="Inter,sans-serif">1F床面積</text><text x="590" y="519" fill="#333" font-size="5" font-family="Inter,sans-serif">62.02㎡（18.76坪）</text>
+          <text x="510" y="535" fill="#555" font-size="5" font-family="Inter,sans-serif">構造</text><text x="590" y="535" fill="#333" font-size="5" font-family="Noto Sans JP,sans-serif">在来木造2階建</text><text x="660" y="535" fill="#555" font-size="5" font-family="Inter">延床</text><text x="690" y="535" fill="#333" font-size="5" font-family="Inter">115.30㎡</text>
+
+          <!-- ====== REVISION TABLE (改訂履歴) ====== -->
+          <rect x="500" y="442" width="220" height="16" fill="#f5f5f5" stroke="#333" stroke-width="0.5"/>
+          <text x="510" y="452" fill="#555" font-size="4" font-family="Inter">REV</text>
+          <text x="530" y="452" fill="#555" font-size="4" font-family="Inter">DATE</text>
+          <text x="570" y="452" fill="#555" font-size="4" font-family="Inter">DESCRIPTION</text>
+          <text x="660" y="452" fill="#555" font-size="4" font-family="Inter">BY</text>
+          <text x="510" y="457" fill="#333" font-size="3.5" font-family="Inter">01</text>
+          <text x="530" y="457" fill="#333" font-size="3.5" font-family="Inter">2025.10.15</text>
+          <text x="570" y="457" fill="#333" font-size="3.5" font-family="Noto Sans JP">初版発行</text>
+
+          <!-- ====== SCALE BAR ====== -->
+          <text x="100" y="475" fill="#555" font-size="5" font-family="Inter,sans-serif">0</text>
+          <rect x="110" y="470" width="48" height="3" fill="#333"/>
+          <rect x="158" y="470" width="48" height="3" fill="#fff" stroke="#333" stroke-width="0.5"/>
+          <rect x="206" y="470" width="48" height="3" fill="#333"/>
+          <text x="158" y="475" fill="#555" font-size="5" font-family="Inter,sans-serif">1m</text>
+          <text x="206" y="475" fill="#555" font-size="5" font-family="Inter,sans-serif">2m</text>
+          <text x="254" y="475" fill="#555" font-size="5" font-family="Inter,sans-serif">3m</text>
+          <text x="100" y="485" fill="#888" font-size="5" font-family="Inter,sans-serif">S=1:100</text>
+
+          <!-- ====== LEGEND (凡例 - partial) ====== -->
+          <rect x="100" y="495" width="180" height="55" fill="#fff" stroke="#333" stroke-width="0.5"/>
+          <text x="110" y="505" fill="#333" font-size="5" font-family="Noto Sans JP,sans-serif" font-weight="700">凡例</text>
+          <circle cx="115" cy="514" r="2.5" fill="none" stroke="#222" stroke-width="0.5"/><line x1="111" y1="514" x2="112.5" y2="514" stroke="#222" stroke-width="0.4"/><line x1="117.5" y1="514" x2="119" y2="514" stroke="#222" stroke-width="0.4"/>
+          <text x="125" y="516" fill="#555" font-size="4" font-family="Noto Sans JP,sans-serif">コンセント</text>
+          <circle cx="115" cy="525" r="2" fill="#222"/>
+          <text x="119" y="527" fill="#555" font-size="4" font-family="Noto Sans JP,sans-serif">S スイッチ</text>
+          <g transform="translate(115,536)"><circle r="3" fill="none" stroke="#222" stroke-width="0.4"/><line x1="-2" y1="0" x2="2" y2="0" stroke="#222" stroke-width="0.3"/><line x1="0" y1="-2" x2="0" y2="2" stroke="#222" stroke-width="0.3"/></g>
+          <text x="125" y="538" fill="#555" font-size="4" font-family="Noto Sans JP,sans-serif">天井照明</text>
+          <g transform="translate(185,514)"><polygon points="0,-3 2.5,1.5 -2.5,1.5" fill="none" stroke="#c00" stroke-width="0.4"/><text x="0" y="0.5" text-anchor="middle" fill="#c00" font-size="2.5" font-family="Inter" font-weight="600">F</text></g>
+          <text x="193" y="516" fill="#555" font-size="4" font-family="Noto Sans JP,sans-serif">火報</text>
+          <circle cx="185" cy="525" r="2.5" fill="none" stroke="#222" stroke-width="0.4"/><circle cx="185" cy="525" r="0.8" fill="#222"/>
+          <text x="193" y="527" fill="#555" font-size="4" font-family="Noto Sans JP,sans-serif">ダウンライト</text>
+          <circle cx="185" cy="536" r="3" fill="none" stroke="#222" stroke-width="0.4"/><circle cx="185" cy="536" r="1" fill="#222"/>
+          <text x="193" y="538" fill="#555" font-size="4" font-family="Noto Sans JP,sans-serif">竪樋</text>
+        </svg>      </div>
+      <div class="cad-note">この図面からAIが面積・仕様・建材を自動読み取り</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCENE 9: OUTPUT - 実行予算書 ===== -->
+<div class="scene scene9" id="scene9">
+  <div class="scene-header" data-anim="fadeInLeft" data-delay="200">
+    <div class="scene-number">07</div>
+    <div class="scene-title">OUTPUT &#8212; 実行予算書（自動生成）</div>
+  </div>
+  <div class="output-container" data-anim="fadeInUp" data-delay="400">
+    <div class="excel-frame" style="flex:1;min-height:0;">
+      <div class="excel-toolbar">
+        <span class="excel-toolbar-title">概算見積書_サンプル.xlsx &#8212; 明細書</span>
+        <span style="margin-left:auto;">延床 115.30㎡ / 施工床 117.37㎡ / 在来木造2階建</span>
+      </div>
+      <div style="overflow:hidden;padding:4px;">
+        <table class="est-table">
+          <thead>
+            <tr><th>No</th><th>名称</th><th>摘要</th><th class="r">数量</th><th>単位</th><th class="r">単価</th><th class="r">金額</th></tr>
+          </thead>
+          <tbody>
+            <tr class="section"><td></td><td colspan="6">01_仮設工事</td></tr>
+            <tr><td>1</td><td>外部足場組</td><td>養生ネット等含む</td><td class="r">253.51</td><td>㎡</td><td class="r">900</td><td class="r">228,160</td></tr>
+            <tr><td>2</td><td>仮設トイレ</td><td></td><td class="r">1</td><td>式</td><td class="r">35,800</td><td class="r">35,800</td></tr>
+            <tr><td>3</td><td>廃材処分費</td><td></td><td class="r">117.37</td><td>㎡</td><td class="r">1,500</td><td class="r">176,055</td></tr>
+            <tr><td>4</td><td>運搬費</td><td></td><td class="r">117.37</td><td>㎡</td><td class="r">720</td><td class="r">84,506</td></tr>
+            <tr><td>5</td><td>安全対策費</td><td>120㎡以下</td><td class="r">1</td><td>式</td><td class="r">142,900</td><td class="r">142,900</td></tr>
+            <tr class="subtotal"><td></td><td colspan="5">仮設工事 小計</td><td class="r">911,821</td></tr>
+            <tr class="section"><td></td><td colspan="6">02_基礎工事</td></tr>
+            <tr><td>9</td><td>ベタ基礎</td><td></td><td class="r">62.02</td><td>㎡</td><td class="r">28,200</td><td class="r">1,748,989</td></tr>
+            <tr><td>10</td><td>人通口補強</td><td></td><td class="r">115.30</td><td>㎡</td><td class="r">2,300</td><td class="r">265,190</td></tr>
+            <tr class="subtotal"><td></td><td colspan="5">基礎工事 小計</td><td class="r">2,181,928</td></tr>
+            <tr class="section"><td></td><td colspan="6">03_木工事</td></tr>
+            <tr><td>17</td><td>木造構造材・プレカット</td><td>ALL金物工法</td><td class="r">35.51</td><td>坪</td><td class="r">102,900</td><td class="r">3,653,499</td></tr>
+            <tr><td>22</td><td>下地材（基本）</td><td></td><td class="r">35.51</td><td>坪</td><td class="r">37,200</td><td class="r">1,320,798</td></tr>
+            <tr><td>34</td><td>制震ダンパー</td><td>MIRAIE</td><td class="r">4</td><td>本</td><td class="r">86,500</td><td class="r">346,000</td></tr>
+            <tr class="subtotal"><td></td><td colspan="5">木工事 小計（38項目）</td><td class="r">9,817,467</td></tr>
+            <tr style="color:var(--text-muted);font-style:italic;"><td></td><td colspan="6">... 04_断熱 〜 23_諸費用（他19工種を自動積算）...</td></tr>
+            <tr class="total"><td></td><td colspan="5">税抜合計</td><td class="r">28,906,840</td></tr>
+            <tr class="total-tax"><td></td><td colspan="5">見積金額（税込）</td><td class="r">&#165;31,800,000</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCENE 10: ACCURACY ===== -->
+<div class="scene scene10" id="scene10">
+  <div class="scene-header" data-anim="fadeInLeft" data-delay="200">
+    <div class="scene-number">08</div>
+    <div class="scene-title">精度検証 &#8212; 全22工種で誤差2%以内</div>
+  </div>
+  <div class="accuracy-content">
+    <div class="accuracy-hero" data-anim="fadeInUp" data-delay="400">
+      <h3>AI見積の各工種金額を<br>ベテラン積算担当者の結果と比較検証</h3>
+      <p>粗利率の計算も自動で行い、経営判断に直結するデータを即座に提供。</p>
+    </div>
+    <div class="accuracy-features" data-anim="fadeInUp" data-delay="600">
+      <div class="accuracy-feat">仮設工事〜諸費用まで22工種を自動分類</div>
+      <div class="accuracy-feat">物件概要を自動判定</div>
+      <div class="accuracy-feat">粗利率30%前後を自動計算</div>
+      <div class="accuracy-feat">準防火・鋼板屋根などの条件を自動反映</div>
+    </div>
+    <div class="acc-bars" id="accuracyBars" data-anim="fadeInUp" data-delay="800">
+      <div class="acc-bar-section-title">工種別 精度</div>
+      <div class="acc-bar-row"><div class="acc-bar-label">仮設工事</div><div class="acc-bar-track"><div class="acc-bar-fill" data-width="99.2"></div></div><div class="acc-bar-val">99.2%</div></div>
+      <div class="acc-bar-row"><div class="acc-bar-label">基礎工事</div><div class="acc-bar-track"><div class="acc-bar-fill" data-width="98.8"></div></div><div class="acc-bar-val">98.8%</div></div>
+      <div class="acc-bar-row"><div class="acc-bar-label">木工事</div><div class="acc-bar-track"><div class="acc-bar-fill" data-width="99.5"></div></div><div class="acc-bar-val">99.5%</div></div>
+      <div class="acc-bar-row"><div class="acc-bar-label">断熱工事</div><div class="acc-bar-track"><div class="acc-bar-fill" data-width="98.6"></div></div><div class="acc-bar-val">98.6%</div></div>
+      <div class="acc-bar-row"><div class="acc-bar-label">住宅設備</div><div class="acc-bar-track"><div class="acc-bar-fill" data-width="99.1"></div></div><div class="acc-bar-val">99.1%</div></div>
+      <div class="acc-bar-row"><div class="acc-bar-label">電気設備</div><div class="acc-bar-track"><div class="acc-bar-fill" data-width="98.4"></div></div><div class="acc-bar-val">98.4%</div></div>
+      <div class="acc-bar-row total"><div class="acc-bar-label">全体一致率</div><div class="acc-bar-track"><div class="acc-bar-fill" data-width="98.7"></div></div><div class="acc-bar-val">98.7%</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCENE 11: PROFIT TABLE ===== -->
+<div class="scene scene11" id="scene11">
+  <div class="scene-header" data-anim="fadeInLeft" data-delay="200">
+    <div class="scene-number">09</div>
+    <div class="scene-title">粗利表の自動生成</div>
+  </div>
+  <div class="profit-container">
+    <div class="profit-summary" data-anim="fadeInUp" data-delay="400">
+      <div class="profit-summary-item">
+        <div class="profit-summary-val">&#165;28,906,840</div>
+        <div class="profit-summary-label">AI算出 税抜金額</div>
+      </div>
+      <div class="profit-summary-item">
+        <div class="profit-summary-val">&#165;19,947,000</div>
+        <div class="profit-summary-label">発注金額（自動算出）</div>
+      </div>
+      <div class="profit-summary-item">
+        <div class="profit-summary-val">31.0%</div>
+        <div class="profit-summary-label">粗利率（自動計算）</div>
+      </div>
+    </div>
+    <div class="profit-table-wrap" data-anim="fadeInUp" data-delay="600">
+      <div class="excel-frame">
+        <div class="excel-toolbar">
+          <span class="excel-toolbar-title">概算見積書_サンプル.xlsx &#8212; 粗利表</span>
+        </div>
+        <div style="overflow:hidden;padding:4px;">
+          <table class="profit-table">
+            <thead>
+              <tr><th>工事種別</th><th class="r">見積金額</th><th class="r">発注金額</th><th class="r">粗利額</th><th class="r">粗利率</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>01_仮設工事</td><td class="r">911,821</td><td class="r">624,162</td><td class="r">287,659</td><td class="r">31.5%</td></tr>
+              <tr><td>02_基礎工事</td><td class="r">2,181,928</td><td class="r">1,523,359</td><td class="r">658,569</td><td class="r">30.2%</td></tr>
+              <tr><td>03_木工事</td><td class="r">9,817,467</td><td class="r">6,829,043</td><td class="r">2,988,424</td><td class="r">30.4%</td></tr>
+              <tr><td>04_断熱工事</td><td class="r">1,228,805</td><td class="r">852,700</td><td class="r">376,105</td><td class="r">30.6%</td></tr>
+              <tr><td>05_屋根工事</td><td class="r">832,649</td><td class="r">577,033</td><td class="r">255,616</td><td class="r">30.7%</td></tr>
+              <tr><td>06_板金・樋工事</td><td class="r">165,914</td><td class="r">115,884</td><td class="r">50,030</td><td class="r">30.2%</td></tr>
+              <tr><td>07_外部建具工事</td><td class="r">1,323,900</td><td class="r">926,400</td><td class="r">397,500</td><td class="r">30.0%</td></tr>
+              <tr><td>08_内部建具工事</td><td class="r">802,100</td><td class="r">561,050</td><td class="r">241,050</td><td class="r">30.1%</td></tr>
+              <tr><td>10_外装工事</td><td class="r">1,930,058</td><td class="r">1,338,431</td><td class="r">591,627</td><td class="r">30.7%</td></tr>
+              <tr><td>11_左官工事</td><td class="r">192,691</td><td class="r">134,028</td><td class="r">58,663</td><td class="r">30.4%</td></tr>
+              <tr><td>12_タイル工事</td><td class="r">120,293</td><td class="r">83,986</td><td class="r">36,307</td><td class="r">30.2%</td></tr>
+              <tr><td>13_内装工事</td><td class="r">739,437</td><td class="r">516,211</td><td class="r">223,226</td><td class="r">30.2%</td></tr>
+              <tr><td>14_住宅設備機器工事</td><td class="r">2,967,800</td><td class="r">2,077,150</td><td class="r">890,650</td><td class="r">30.0%</td></tr>
+              <tr><td>15_給排水設備工事</td><td class="r">343,100</td><td class="r">240,000</td><td class="r">103,100</td><td class="r">30.0%</td></tr>
+              <tr><td>16_電気設備工事</td><td class="r">963,000</td><td class="r">669,900</td><td class="r">293,100</td><td class="r">30.4%</td></tr>
+              <tr><td>17_換気システム工事</td><td class="r">502,649</td><td class="r">351,534</td><td class="r">151,115</td><td class="r">30.1%</td></tr>
+              <tr><td>18_エアコン工事</td><td class="r">706,000</td><td class="r">493,500</td><td class="r">212,500</td><td class="r">30.1%</td></tr>
+              <tr><td>19_造作家具工事</td><td class="r">136,600</td><td class="r">95,600</td><td class="r">41,000</td><td class="r">30.0%</td></tr>
+              <tr><td>20_雑工事</td><td class="r">158,585</td><td class="r">110,343</td><td class="r">48,242</td><td class="r">30.4%</td></tr>
+              <tr><td>21_管理費</td><td class="r">780,743</td><td class="r">362,406</td><td class="r">418,337</td><td class="r">53.6%</td></tr>
+              <tr><td>22_屋外付帯工事</td><td class="r">831,300</td><td class="r">575,280</td><td class="r">256,020</td><td class="r">30.8%</td></tr>
+              <tr><td>23_諸費用</td><td class="r">1,270,000</td><td class="r">889,000</td><td class="r">381,000</td><td class="r">30.0%</td></tr>
+              <tr class="total"><td>合計</td><td class="r">28,906,840</td><td class="r">19,947,000</td><td class="r">8,959,840</td><td class="r">31.0%</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCENE 12: RESULT 1 ===== -->
+<div class="scene result-page" id="scene12">
+  <div class="scene-header" data-anim="fadeInLeft" data-delay="200">
+    <div class="scene-number">10</div>
+    <div class="scene-title">導入効果 &#8212; 作成時間</div>
+  </div>
+  <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2vh;">
+    <div class="result-hero-number" data-anim="fadeInUp" data-delay="400" id="counter1">0分</div>
+    <div class="result-hero-label" data-anim="fadeInUp" data-delay="600">見積作成時間</div>
+    <div class="result-hero-desc" data-anim="fadeInUp" data-delay="800">
+      8-16時間の手作業が<br>わずか3分に短縮
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCENE 13: RESULT 2 ===== -->
+<div class="scene result-page" id="scene13">
+  <div class="scene-header" data-anim="fadeInLeft" data-delay="200">
+    <div class="scene-number">11</div>
+    <div class="scene-title">導入効果 &#8212; 精度</div>
+  </div>
+  <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2vh;">
+    <div class="result-hero-number" data-anim="fadeInUp" data-delay="400" id="counter2">0%</div>
+    <div class="result-hero-label" data-anim="fadeInUp" data-delay="600">精度（人との一致率）</div>
+    <div class="result-hero-desc" data-anim="fadeInUp" data-delay="800">
+      ベテラン積算担当者と<br>ほぼ同等の精度を実現
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCENE 14: RESULT 3 ===== -->
+<div class="scene result-page" id="scene14">
+  <div class="scene-header" data-anim="fadeInLeft" data-delay="200">
+    <div class="scene-number">12</div>
+    <div class="scene-title">導入効果 &#8212; 自動積算</div>
+  </div>
+  <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2vh;">
+    <div class="result-hero-number" data-anim="fadeInUp" data-delay="400" id="counter3">0工種</div>
+    <div class="result-hero-label" data-anim="fadeInUp" data-delay="600">自動積算工種</div>
+    <div class="result-hero-desc" data-anim="fadeInUp" data-delay="800">
+      仮設〜諸費用まで<br>全工種を自動分類・計算
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCENE 15: CTA ===== -->
+<div class="scene scene15" id="scene15">
+  <div class="cta-title" data-anim="fadeInUp" data-delay="400">
+    積算業務をAIで自動化しませんか？
+  </div>
+  <div class="cta-sub" data-anim="fadeInUp" data-delay="700">
+    CAD図面からの見積作成を完全自動化。<br>ベテランの知見をAIに集約し、属人化を解消します。
+  </div>
+  <button class="cta-button" data-anim="fadeInUp" data-delay="1000">
+    お問い合わせはこちら
+  </button>
+  <div class="cta-contact" data-anim="fadeInUp" data-delay="1200">
+    contact@because-and.co.jp
+  </div>
+</div>
+
+<script>
+  const totalScenes = 15;
+  let currentScene = 0;
+  let autoPlayTimer = null;
+  let isAutoPlaying = true;
+  const sceneDurations = [5000, 7000, 6000, 6000, 6000, 8000, 7000, 7000, 7000, 7000, 8000, 5000, 5000, 5000, 6000];
+
+  const indicatorContainer = document.getElementById('sceneIndicators');
+  for (let i = 0; i < totalScenes; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'scene-dot' + (i === 0 ? ' active' : '');
+    dot.onclick = () => goToScene(i);
+    indicatorContainer.appendChild(dot);
+  }
+
+  function animateElements(sceneEl) {
+    const elements = sceneEl.querySelectorAll('[data-anim]');
+    elements.forEach(el => {
+      const delay = parseInt(el.dataset.delay) || 0;
+      el.style.opacity = '0';
+      setTimeout(() => {
+        el.style.transition = 'all 0.7s cubic-bezier(0.16, 1, 0.3, 1)';
+        el.style.opacity = '1';
+        el.style.transform = 'translate(0, 0) scale(1)';
+      }, delay);
+    });
+  }
+
+  function resetElements(sceneEl) {
+    const elements = sceneEl.querySelectorAll('[data-anim]');
+    elements.forEach(el => {
+      el.style.transition = 'none';
+      el.style.opacity = '0';
+      const anim = el.dataset.anim;
+      if (anim === 'fadeInUp') el.style.transform = 'translateY(30px)';
+      else if (anim === 'fadeInLeft') el.style.transform = 'translateX(-30px)';
+      else if (anim === 'fadeInScale') el.style.transform = 'scale(0.95)';
+      else el.style.transform = 'translateY(20px)';
+    });
+  }
+
+  function startAccuracyBars() {
+    const bars = document.querySelectorAll('#accuracyBars .acc-bar-fill');
+    bars.forEach((bar, i) => {
+      setTimeout(() => { bar.style.width = bar.dataset.width + '%'; }, 300 + i * 150);
+    });
+  }
+  function resetAccuracyBars() {
+    const bars = document.querySelectorAll('#accuracyBars .acc-bar-fill');
+    bars.forEach(bar => { bar.style.width = '0%'; });
+  }
+
+  function goToScene(index) {
+    if (index < 0 || index >= totalScenes) return;
+    const currentEl = document.getElementById('scene' + (currentScene + 1));
+    if (currentEl) {
+      currentEl.style.animation = 'sceneOut 0.4s ease forwards';
+      setTimeout(() => {
+        currentEl.classList.remove('active');
+        currentEl.style.animation = '';
+        resetElements(currentEl);
+        if (currentScene === 9) resetAccuracyBars();
+      }, 400);
+    }
+    currentScene = index;
+    setTimeout(() => {
+      const newEl = document.getElementById('scene' + (currentScene + 1));
+      newEl.classList.add('active');
+      newEl.style.animation = 'sceneIn 0.4s ease forwards';
+      animateElements(newEl);
+      if (currentScene === 9) setTimeout(startAccuracyBars, 800);
+      if (currentScene === 11) setTimeout(() => animateCounter('counter1', 0, 3, 1500, '分'), 500);
+      if (currentScene === 12) setTimeout(() => animateCounter('counter2', 0, 98, 1500, '%'), 500);
+      if (currentScene === 13) setTimeout(() => animateCounter('counter3', 0, 22, 1500, '工種'), 500);
+      document.querySelectorAll('.scene-dot').forEach((d, i) => {
+        d.classList.toggle('active', i === currentScene);
+      });
+      document.getElementById('progressBar').style.width =
+        ((currentScene + 1) / totalScenes * 100) + '%';
+    }, 400);
+    if (isAutoPlaying) {
+      clearTimeout(autoPlayTimer);
+      autoPlayTimer = setTimeout(() => nextScene(), sceneDurations[currentScene]);
+    }
+  }
+
+  function nextScene() { goToScene(currentScene < totalScenes - 1 ? currentScene + 1 : 0); }
+  function prevScene() { if (currentScene > 0) goToScene(currentScene - 1); }
+  function toggleAutoPlay() {
+    isAutoPlaying = !isAutoPlaying;
+    document.getElementById('playPauseBtn').innerHTML = isAutoPlaying ? '&#9646;&#9646;' : '&#9654;';
+    if (isAutoPlaying) autoPlayTimer = setTimeout(() => nextScene(), sceneDurations[currentScene]);
+    else clearTimeout(autoPlayTimer);
+  }
+
+  function animateCounter(id, start, end, duration, suffix) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const startTime = performance.now();
+    function update(currentTime) {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      el.textContent = Math.round(start + (end - start) * eased) + suffix;
+      if (progress < 1) requestAnimationFrame(update);
+    }
+    requestAnimationFrame(update);
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); nextScene(); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); prevScene(); }
+    if (e.key === 'p') toggleAutoPlay();
+  });
+
+  window.addEventListener('load', () => {
+    const scene1 = document.getElementById('scene1');
+    scene1.classList.add('active');
+    animateElements(scene1);
+    document.getElementById('progressBar').style.width = (1 / totalScenes * 100) + '%';
+    autoPlayTimer = setTimeout(() => nextScene(), sceneDurations[0]);
+  });
+</script>
+</body>
+</html>
